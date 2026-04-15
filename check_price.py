@@ -1,4 +1,5 @@
 import requests
+from bs4 import BeautifulSoup
 import smtplib
 import os
 import json
@@ -33,10 +34,10 @@ def send_email(subject, body_text):
         print(f"Failed to send email: {e}")
 
 def check_prices():
-    # Тук си слагаш линкчовците
+    # Набивай си линкчовци тук на воля!
     products = {
         "DJI Mini 3 (RC-N1)": "https://store.dji.com/bg/product/dji-mini-3-refurbished-unit?from=pages-refurbished&vid=141921",
-        "DJI Mini 3 Fly More (RC-N1)": "https://store.dji.com/bg/product/dji-mini-3-combo-refurbished-unit?from=pages-refurbished&vid=141981"
+        "DJI Mini 3 Fly More Combo": "https://store.dji.com/bg/product/dji-mini-3-combo-refurbished-unit?from=pages-refurbished&vid=141981"
     }
 
     headers = {
@@ -51,7 +52,7 @@ def check_prices():
             with open(prices_file, "r", encoding="utf-8") as f:
                 last_prices = json.load(f)
         except Exception:
-            print("Failed to load JSON. Ще го презапишем.")
+            print("Failed to load JSON. Ще го презапишем, гащник.")
 
     changed = False
 
@@ -59,48 +60,54 @@ def check_prices():
         try:
             response = requests.get(url, headers=headers)
             response.raise_for_status()
-
-            # Изсмукваме големия JSON с всички данни
-            match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*?});', response.text, re.DOTALL)
             
-            if match:
-                state_json = json.loads(match.group(1))
-                vid = url.split('vid=')[1].split('&')[0] if 'vid=' in url else None
-                
-                current_price = None
-                exact_name = name # Fallback име
-                
-                if vid:
-                    variants = state_json.get('products', {}).get('variants', [])
-                    for variant in variants:
-                        if str(variant.get('id')) == str(vid):
-                            price_cents = variant.get('priceCents', 0)
-                            current_price = f"{price_cents / 100} €"
-                            
-                            # ВЗИМАМЕ ТОЧНОТО ИМЕ ДИРЕКТНО ОТ JSON-a, ЗА ДА НЯМА ГРЕШКИ!
-                            if variant.get('title'):
-                                exact_name = variant.get('title')
-                            break
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Вземаме ID-то (vid) от линка
+            vid = url.split('vid=')[1].split('&')[0] if 'vid=' in url else None
+            
+            current_price = None
+            exact_name = name
+            
+            if vid:
+                # Търсим конкретния бутон/контейнер за този вариант, за да избегнем SSR дефолтите
+                variant_li = soup.find('li', id=f"accessory-item-{vid}")
+                if variant_li:
+                    # Вадим цената само от него
+                    price_tag = variant_li.find('span', class_=re.compile(r'price'))
+                    if price_tag:
+                        current_price = price_tag.text.strip()
+                    
+                    # Вадим точното име само от него
+                    title_tag = variant_li.find('div', class_=re.compile(r'product-title'))
+                    if title_tag:
+                        exact_name = title_tag.text.strip()
 
-                if current_price:
-                    old_price = last_prices.get(exact_name, "")
+            # План Б: Ако няма vid или дизайнът е друг, ползваме главното заглавие
+            if not current_price:
+                price_span = soup.find('span', class_=re.compile(r'styles__price'))
+                if price_span:
+                    current_price = price_span.text.strip()
+                    
+                h1_tag = soup.find('h1', class_=re.compile(r'product-title'))
+                if h1_tag and exact_name == name:
+                    exact_name = h1_tag.text.strip()
 
-                    if current_price != old_price:
-                        send_email(
-                            f"🚨 Price Change: {exact_name}", 
-                            f"Йо шефе, цената на {exact_name} се смени от {old_price if old_price else 'неизвестна'} на {current_price}! Бягай да купуваш, andibul carrot!"
-                        )
-                        last_prices[exact_name] = current_price
-                        changed = True
-                        print(f"[{exact_name}] Price updated: {old_price} -> {current_price}. Мамка му човече, работи!")
-                    else:
-                        print(f"[{exact_name}] Price is still {current_price}. No spam, гащник.")
+            if current_price:
+                old_price = last_prices.get(exact_name, "")
+
+                if current_price != old_price:
+                    send_email(
+                        f"🚨 Price Change: {exact_name}", 
+                        f"Йо шефе, цената на {exact_name} се смени от {old_price if old_price else 'неизвестна'} на {current_price}! Бягай да купуваш, andibul carrot!"
+                    )
+                    last_prices[exact_name] = current_price
+                    changed = True
+                    print(f"[{exact_name}] Price updated: {old_price} -> {current_price}. Мамка му човече, работи!")
                 else:
-                    err_msg = f"Could not find price for {name} in JSON data. Пълен паприкаш!"
-                    print(err_msg)
-                    send_email(f"⚠️ Error: {name}", err_msg)
+                    print(f"[{exact_name}] Price is still {current_price}. No spam for you, боклуче.")
             else:
-                err_msg = f"Could not find __PRELOADED_STATE__ for {name}. Пълен паприкаш! Пак са сменили сайта!"
+                err_msg = f"Could not find price for {name}. Тотален паприкаш!"
                 print(err_msg)
                 send_email(f"⚠️ Error: {name}", err_msg)
 
