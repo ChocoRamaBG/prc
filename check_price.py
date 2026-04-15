@@ -1,4 +1,5 @@
 import requests
+from bs4 import BeautifulSoup
 import smtplib
 import os
 import json
@@ -58,25 +59,26 @@ def check_prices():
         try:
             response = requests.get(url, headers=headers)
             response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Търсим точното име от h1 тагчовците на страницата
+            h1_tag = soup.find('h1', class_=re.compile(r'product-title'))
+            exact_name = h1_tag.text.strip() if h1_tag else name
 
-            # Търсим големия JSON блок в HTML-а
+            # Търсим големия JSON блок за цената
             match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*?});', response.text, re.DOTALL)
             
             if match:
                 state_json = json.loads(match.group(1))
                 
-                # Малко черна магия да извадим цената от дълбокия JSON
-                # Използваме 'vid' от URL-а, за да намерим точния вариант. 141921 е ID-то.
                 vid = url.split('vid=')[1].split('&')[0] if 'vid=' in url else None
-                
                 current_price = None
                 
                 if vid:
-                    # Отиваме дълбоко в state_json -> products -> loadingState/success -> variants -> ID
                     variants = state_json.get('products', {}).get('variants', [])
                     for variant in variants:
                         if str(variant.get('id')) == str(vid):
-                            # Цената е в центове, така че делим на 100
                             price_cents = variant.get('priceCents', 0)
                             current_price = f"{price_cents / 100} €"
                             break
@@ -86,22 +88,22 @@ def check_prices():
 
                     if current_price != old_price:
                         send_email(
-                            f"🚨 Price Change: {name}", 
-                            f"Йо шефе, цената на {name} се смени от {old_price if old_price else 'неизвестна'} на {current_price}! Бягай да купуваш, andibul carrot!"
+                            f"🚨 Price Change: {exact_name}", 
+                            f"Йо шефе, цената на {exact_name} се смени от {old_price if old_price else 'неизвестна'} на {current_price}! Бягай да купуваш, andibul carrot!"
                         )
                         last_prices[name] = current_price
                         changed = True
-                        print(f"[{name}] Price updated: {old_price} -> {current_price}. Мамка му човече, работи!")
+                        print(f"[{exact_name}] Price updated: {old_price} -> {current_price}. Мамка му човече, работи!")
                     else:
-                        print(f"[{name}] Price is still {current_price}. No spam, гащник.")
+                        print(f"[{exact_name}] Price is still {current_price}. No spam, гащник.")
                 else:
-                    err_msg = f"Could not find price for {name} in JSON data. Пълен паприкаш!"
+                    err_msg = f"Could not find price for {exact_name} in JSON data. Пълен паприкаш!"
                     print(err_msg)
-                    send_email(f"⚠️ Error: {name}", err_msg)
+                    send_email(f"⚠️ Error: {exact_name}", err_msg)
             else:
-                err_msg = f"Could not find __PRELOADED_STATE__ for {name}. Пълен паприкаш! Пак са сменили сайта!"
+                err_msg = f"Could not find __PRELOADED_STATE__ for {exact_name}. Пълен паприкаш! Пак са сменили сайта!"
                 print(err_msg)
-                send_email(f"⚠️ Error: {name}", err_msg)
+                send_email(f"⚠️ Error: {exact_name}", err_msg)
 
         except Exception as e:
             err_msg = f"Error occurred while checking {name}: {e}"
