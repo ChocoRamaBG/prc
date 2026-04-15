@@ -2,8 +2,11 @@ name: DJI Price Checker
 
 on:
   schedule:
-    - cron: '0 */8 * * *' # Run exactly 3 times a day
-  workflow_dispatch: # Allows you to run it manually from the Actions tab
+    - cron: '0 */8 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write # Даваме му права да маже по репото, иначе ще гръмне!
 
 jobs:
   check-price:
@@ -27,3 +30,9 @@ jobs:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
         run: python check_price.py
+
+      - name: Commit updated price file
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "bot: update last seen price [skip ci]"
+          file_pattern: last_price.txt
