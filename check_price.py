@@ -36,8 +36,8 @@ def send_email(subject, body_text):
 def check_prices():
     # Тук си слагаш линкчовците
     products = {
-        "DJI Mini 3 (RC-N1)": "https://store.dji.com/bg/product/dji-mini-3-refurbished-unit?from=pages-refurbished&vid=141921",
-        "DJI Mini 3 Fly More Combo": "https://store.dji.com/bg/product/dji-mini-3-combo-refurbished-unit?from=pages-refurbished&vid=141981"
+        "DJI Mini 3 (DJI RC-N1) (Refurbished Unit)": "https://store.dji.com/bg/product/dji-mini-3-refurbished-unit?from=site-nav&vid=142260&set_region=BG",
+        "DJI Mini 3 Fly More Combo (DJI RC-N1) (Refurbished Unit)": "https://store.dji.com/bg/product/dji-mini-3-combo-refurbished-unit?from=site-nav&vid=141981&set_region=BG"
     }
 
     headers = {
