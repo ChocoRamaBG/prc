@@ -1,5 +1,4 @@
 import requests
-from bs4 import BeautifulSoup
 import smtplib
 import os
 import json
@@ -17,7 +16,7 @@ def send_email(subject, body_text):
     receiver = sender 
 
     if not sender or not password:
-        print("No email credentials found. Андибул морков! Провери си GitHub Secrets!")
+        print("No email credentials found. Андибул морков!")
         return
 
     msg = MIMEText(body_text)
@@ -31,12 +30,13 @@ def send_email(subject, body_text):
             server.sendmail(sender, receiver, msg.as_string())
             print(f"Email '{subject}' sent successfully!")
     except Exception as e:
-        print(f"Failed to send email: {e} - Сигурен ли си, че паролата е App Password, а не нормалната ти?")
+        print(f"Failed to send email: {e}")
 
 def check_prices():
-    # Набиваш линкчовци
+    # Тук си слагаш линкчовците
     products = {
-        "DJI Mini 3 (Refurbished)": "https://store.dji.com/bg/product/dji-mini-3-refurbished-unit?from=pages-refurbished&vid=141921",
+        "DJI Mini 3 (RC-N1)": "https://store.dji.com/bg/product/dji-mini-3-refurbished-unit?from=pages-refurbished&vid=141921",
+        "DJI Mini 3 Fly More (RC-N1)": "https://store.dji.com/bg/product/dji-mini-3-combo-refurbished-unit?from=pages-refurbished&vid=141981"
     }
 
     headers = {
@@ -59,21 +59,16 @@ def check_prices():
         try:
             response = requests.get(url, headers=headers)
             response.raise_for_status()
-            
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Търсим точното име от h1 тагчовците на страницата
-            h1_tag = soup.find('h1', class_=re.compile(r'product-title'))
-            exact_name = h1_tag.text.strip() if h1_tag else name
 
-            # Търсим големия JSON блок за цената
+            # Изсмукваме големия JSON с всички данни
             match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*?});', response.text, re.DOTALL)
             
             if match:
                 state_json = json.loads(match.group(1))
-                
                 vid = url.split('vid=')[1].split('&')[0] if 'vid=' in url else None
+                
                 current_price = None
+                exact_name = name # Fallback име
                 
                 if vid:
                     variants = state_json.get('products', {}).get('variants', [])
@@ -81,29 +76,33 @@ def check_prices():
                         if str(variant.get('id')) == str(vid):
                             price_cents = variant.get('priceCents', 0)
                             current_price = f"{price_cents / 100} €"
+                            
+                            # ВЗИМАМЕ ТОЧНОТО ИМЕ ДИРЕКТНО ОТ JSON-a, ЗА ДА НЯМА ГРЕШКИ!
+                            if variant.get('title'):
+                                exact_name = variant.get('title')
                             break
 
                 if current_price:
-                    old_price = last_prices.get(name, "")
+                    old_price = last_prices.get(exact_name, "")
 
                     if current_price != old_price:
                         send_email(
                             f"🚨 Price Change: {exact_name}", 
                             f"Йо шефе, цената на {exact_name} се смени от {old_price if old_price else 'неизвестна'} на {current_price}! Бягай да купуваш, andibul carrot!"
                         )
-                        last_prices[name] = current_price
+                        last_prices[exact_name] = current_price
                         changed = True
                         print(f"[{exact_name}] Price updated: {old_price} -> {current_price}. Мамка му човече, работи!")
                     else:
                         print(f"[{exact_name}] Price is still {current_price}. No spam, гащник.")
                 else:
-                    err_msg = f"Could not find price for {exact_name} in JSON data. Пълен паприкаш!"
+                    err_msg = f"Could not find price for {name} in JSON data. Пълен паприкаш!"
                     print(err_msg)
-                    send_email(f"⚠️ Error: {exact_name}", err_msg)
+                    send_email(f"⚠️ Error: {name}", err_msg)
             else:
-                err_msg = f"Could not find __PRELOADED_STATE__ for {exact_name}. Пълен паприкаш! Пак са сменили сайта!"
+                err_msg = f"Could not find __PRELOADED_STATE__ for {name}. Пълен паприкаш! Пак са сменили сайта!"
                 print(err_msg)
-                send_email(f"⚠️ Error: {exact_name}", err_msg)
+                send_email(f"⚠️ Error: {name}", err_msg)
 
         except Exception as e:
             err_msg = f"Error occurred while checking {name}: {e}"
