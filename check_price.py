@@ -44,6 +44,13 @@ def check_prices():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
     }
     
+    # ВЪРНАХ ТИ ГО ТОВА, НЕ ГО ТРИЙ ПОВЕЧЕ! За да имаш ЕВРО!
+    forced_cookies = {
+        "currency": "EUR",
+        "country": "bg",
+        "region": "BG"
+    }
+    
     prices_file = os.path.join(output_dir, "last_prices.json")
     last_prices = {}
 
@@ -61,7 +68,8 @@ def check_prices():
             # 3 секунди пауза, както си поръча, палавник!
             time.sleep(3)
             
-            response = requests.get(url, headers=headers)
+            # ПОЛЗВАМЕ БИСКВИТКИТЕ ТУК
+            response = requests.get(url, headers=headers, cookies=forced_cookies)
             response.raise_for_status()
 
             # Изсмукваме големия JSON с всички данни
@@ -78,7 +86,7 @@ def check_prices():
                     variants = state_json.get('products', {}).get('variants', [])
                     for variant in variants:
                         if str(variant.get('id')) == str(vid):
-                            # Взимаме директно етикета на цената от DJI, за да няма британски паунди и глупости
+                            # Взимаме директно етикета на цената от DJI
                             price_label = variant.get('priceLabel')
                             if not price_label:
                                 price_label = f"{variant.get('priceCents', 0) / 100} €"
@@ -97,14 +105,25 @@ def check_prices():
                     old_state = last_prices.get(exact_name, "")
 
                     if current_state != old_state:
-                        email_body = f"Йо шефе,\n\nИмаме промяна за {exact_name}!\n\nПредишно състояние: {old_state if old_state else 'неизвестно'}\nНово състояние: {current_state}\n\nБягай да проверяваш, andibul carrot!\n\nДиректен линк към продукта:\n{url}"
+                        # Форматираме красиво имейла с всичко, което искаш
+                        email_body = (
+                            f"Йо шефе,\n\n"
+                            f"Имаме промяна за:\n{exact_name}\n"
+                            f"Линк: {url}\n\n"
+                            f"Предишно състояние: {old_state if old_state else 'неизвестно'}\n"
+                            f"Ново състояние: {current_state}\n\n"
+                            f"Бягай да проверяваш, andibul carrot!"
+                        )
                         
                         send_email(f"🚨 Промяна: {exact_name}", email_body)
                         last_prices[exact_name] = current_state
                         changed = True
-                        print(f"[{exact_name}] State updated: {old_state} -> {current_state}. Мамка му човече, работи!")
+                        
+                        # Конзолен изход с ИМЕ + ЛИНК + СТАТУС
+                        print(f"[{exact_name}] ({url}) State updated: {old_state} -> {current_state}. Мамка му човече, работи!")
                     else:
-                        print(f"[{exact_name}] State is still {current_state}. No spam, гащник.")
+                        # Конзолен изход с ИМЕ + ЛИНК + СТАТУС
+                        print(f"[{exact_name}] ({url}) State is still {current_state}. No spam, гащник.")
                 else:
                     err_msg = f"Could not find data for {name} in JSON. Пълен паприкаш!"
                     print(err_msg)
