@@ -35,6 +35,22 @@ def send_email(subject, body_text):
     except Exception as e:
         print(f"❌ Failed to send email: {e}")
 
+def clean_price(price_str):
+    """Превръща тия криви стрингове в чисти числа за смятане, льольо!"""
+    if not price_str or "Error" in price_str or "N/A" in price_str:
+        return 0.0
+    # Махаме всичко, което не е цифра, точка или запетая
+    cleaned = re.sub(r'[^\d.,]', '', price_str)
+    # Оправяме запетайките, че става паприкаш
+    if ',' in cleaned and '.' in cleaned:
+        cleaned = cleaned.replace(',', '')
+    elif ',' in cleaned:
+        cleaned = cleaned.replace(',', '.')
+    try:
+        return float(cleaned)
+    except:
+        return 0.0
+
 def get_price_data(url, site_key):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -46,7 +62,6 @@ def get_price_data(url, site_key):
         status = "Unknown"
 
         if site_key == "dji_global_refurbished":
-            # Директно от извора на refurbished дрончовци
             forced_cookies = {"currency": "EUR", "country": "bg", "region": "BG"}
             response = requests.get(url, headers=headers, cookies=forced_cookies, timeout=15)
             response.raise_for_status()
@@ -63,7 +78,7 @@ def get_price_data(url, site_key):
                         is_in_stock = v.get('in_stock', False) or v.get('status', {}).get('is_in_stock', False)
                         if st_text in ["Buy Now", "Add to Cart"]:
                             is_in_stock = True
-                        status = f"{st_text} ({'In Stock' if is_in_stock else 'Out of Stock'})"
+                        status = f"{st_text} ({'В наличност' if is_in_stock else 'Няма наличност'})"
                         break
             else:
                 price, status = "JSON Error", "Structure Changed"
@@ -96,8 +111,7 @@ def get_price_data(url, site_key):
         return {"price": "Error", "status": str(e)}
 
 def check_prices():
-    # Пълното име, дето го искаше, льольо!
-    product_name = "DJI Mini 3 (DJI RC-N1) (Refurbished Unit)"
+    product_full_name = "DJI Mini 3 (DJI RC-N1) (Refurbished Unit)"
     
     shops = {
         "DJI GLOBAL (SOURCE)": {
@@ -130,33 +144,51 @@ def check_prices():
     any_change = False
     report_steps = []
     
-    print(f"🚀 Стартиране на проверката за: {product_name}...")
+    print(f"🚀 Стартиране на анализа за: {product_full_name}...")
     report_steps.append("🚀 Session started.")
 
     for name, info in shops.items():
-        print(f"🔎 Checking {name}...")
+        print(f"🔎 Проверка на {name}...")
         data = get_price_data(info["url"], info["key"])
         current_results[name] = data
         
         old_price = last_data.get(name, {}).get("price", "None")
         if data["price"] != old_price:
             any_change = True
-            report_steps.append(f"✅ Change detected in {name}: {old_price} -> {data['price']}")
+            report_steps.append(f"✅ Промяна в {name}: {old_price} -> {data['price']}")
         else:
-            report_steps.append(f"😴 No change in {name} ({data['price']})")
+            report_steps.append(f"😴 Без промяна в {name} ({data['price']})")
 
     if any_change:
-        # Бичим имейлчовците с пълното име
-        email_body = f"Йо шефе, ето ти пълния ценови паприкаш за:\n🔥 {product_name} 🔥\n\n"
+        # --- ИЗЧИСЛЯВАНЕ НА БИЗНЕС МЕТРИКИ (ЗА ПАЛАВНИЦИ) ---
+        source_price_val = clean_price(current_results["DJI GLOBAL (SOURCE)"]["price"])
+        comp_prices = []
+        for name, res in current_results.items():
+            if name != "DJI GLOBAL (SOURCE)":
+                val = clean_price(res["price"])
+                if val > 0: comp_prices.append(val)
+        
+        min_comp_price = min(comp_prices) if comp_prices else 0.0
+        potential_profit = min_comp_price - source_price_val if min_comp_price > 0 else 0.0
+        margin_pct = (potential_profit / source_price_val * 100) if source_price_val > 0 else 0.0
+
+        # Build Email Body
+        email_body = f"Йо шефе, ето ти пълния ценови паприкаш за:\n🔥 {product_full_name} 🔥\n\n"
         
         source_name = "DJI GLOBAL (SOURCE)"
-        res = current_results[source_name]
-        email_body += f"🚨 ЦЕНА ЗА КУПУВАНЕ (SOURCE): {res['price']}\n"
-        email_body += f"📦 Статус: {res['status']}\n"
+        source_res = current_results[source_name]
+        email_body += f"🚨 ЦЕНА ЗА КУПУВАНЕ (ОТ МАЙКАТА): {source_res['price']}\n"
+        email_body += f"📦 Статус: {source_res['status']}\n"
         email_body += f"🔗 Линк: {shops[source_name]['url']}\n"
         email_body += "=" * 40 + "\n\n"
         
-        email_body += "📊 КОНКУРЕНТЧОВЦИ:\n"
+        email_body += "🚀 БИЗНЕС АНАЛИЗ (МЕТРИКИ ЗА ПРОФИТЧОВЦИ):\n"
+        email_body += f"💸 Най-ниска цена при конкурентчовци: {min_comp_price:.2f} €\n"
+        email_body += f"💰 Потенциална брутна печалба: {potential_profit:.2f} €\n"
+        email_body += f"📈 Възвръщаемост (ROI): {margin_pct:.1f}%\n"
+        email_body += "------------------------------\n\n"
+
+        email_body += "📊 ДЕТАЙЛИ ЗА КОНКУРЕНТЧОВЦИ:\n"
         for name, res in current_results.items():
             if name == source_name: continue
             email_body += f"🏪 {name}\n"
@@ -165,20 +197,20 @@ def check_prices():
             email_body += f"🔗 Линк: {shops[name]['url']}\n"
             email_body += "-" * 30 + "\n"
         
-        email_body += "\nБягай да действаш, andibul carrot!"
+        email_body += "\nБягай да действаш, преди някой друг палавник да ги изкупи, andibul carrot!"
         
-        send_email(f"🚨 {product_name}: Ценови Ъпдейт", email_body)
+        send_email(f"🚨 {product_full_name}: Пълен Бизнес Анализ", email_body)
         
         with open(prices_file, "w", encoding="utf-8") as f:
             json.dump(current_results, f, ensure_ascii=False, indent=4)
         report_steps.append("💾 Saved results to multi_prices.json")
     else:
-        print("Нищо ново под слънцето, гащник. Конкурентчовците още не са си сменили етикетчовците.")
+        print("Нищо ново под слънцето, гащник. Пазарът е застинал.")
 
     print("\n--- Успешни стъпки ---")
     for step in report_steps:
         print(step)
-    print(f"\nМамка му човече, работи! {product_name} е под пълен контрол.\n")
+    print(f"\nМамка му човече, работи! Вече знаеш колко еврочовци ще лапнеш.\n")
 
 if __name__ == "__main__":
     check_prices()
