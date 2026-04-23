@@ -46,34 +46,29 @@ def get_price_data(url, site_key):
         status = "Unknown"
 
         if site_key == "dji_global_refurbished":
-            # ТОВА Е НАЙ-ВАЖНОТО! Директно от извора.
+            # Директно от извора на refurbished дрончовци
             forced_cookies = {"currency": "EUR", "country": "bg", "region": "BG"}
             response = requests.get(url, headers=headers, cookies=forced_cookies, timeout=15)
             response.raise_for_status()
             
-            # Ровим в JSON-а на DJI Global
             match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*?});', response.text, re.DOTALL)
             if match:
                 state_json = json.loads(match.group(1))
-                target_vid = "141921" # VID за DJI Mini 3 Refurbished
+                target_vid = "141921" 
                 variants = state_json.get('products', {}).get('variants', [])
                 for v in variants:
                     if str(v.get('id')) == target_vid:
                         price = v.get('priceLabel') or f"{v.get('priceCents', 0) / 100} €"
                         st_text = v.get('status', {}).get('text', 'Unknown Status')
-                        
-                        # Проверка за наличност по текст на бутона
                         is_in_stock = v.get('in_stock', False) or v.get('status', {}).get('is_in_stock', False)
                         if st_text in ["Buy Now", "Add to Cart"]:
                             is_in_stock = True
-                        
                         status = f"{st_text} ({'In Stock' if is_in_stock else 'Out of Stock'})"
                         break
             else:
                 price, status = "JSON Error", "Structure Changed"
 
         else:
-            # Другите сайтове ползват BeautifulSoup
             response = requests.get(url, headers=headers, timeout=15)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -101,6 +96,9 @@ def get_price_data(url, site_key):
         return {"price": "Error", "status": str(e)}
 
 def check_prices():
+    # Пълното име, дето го искаше, льольо!
+    product_name = "DJI Mini 3 (DJI RC-N1) (Refurbished Unit)"
+    
     shops = {
         "DJI GLOBAL (SOURCE)": {
             "url": "https://store.dji.com/bg/product/dji-mini-3-refurbished-unit?from=site-nav&vid=141921&set_region=BG",
@@ -132,7 +130,7 @@ def check_prices():
     any_change = False
     report_steps = []
     
-    print("🚀 Стартиране на проверката за дрончовци (DJI Mini 3)...")
+    print(f"🚀 Стартиране на проверката за: {product_name}...")
     report_steps.append("🚀 Session started.")
 
     for name, info in shops.items():
@@ -148,10 +146,9 @@ def check_prices():
             report_steps.append(f"😴 No change in {name} ({data['price']})")
 
     if any_change:
-        # Build Email Body
-        email_body = "Йо шефе, ето ти пълния паприкаш от цени за DJI Mini 3:\n\n"
+        # Бичим имейлчовците с пълното име
+        email_body = f"Йо шефе, ето ти пълния ценови паприкаш за:\n🔥 {product_name} 🔥\n\n"
         
-        # Първо слагаме източника за купуване
         source_name = "DJI GLOBAL (SOURCE)"
         res = current_results[source_name]
         email_body += f"🚨 ЦЕНА ЗА КУПУВАНЕ (SOURCE): {res['price']}\n"
@@ -170,18 +167,18 @@ def check_prices():
         
         email_body += "\nБягай да действаш, andibul carrot!"
         
-        send_email("🚨 DJI Mini 3: Пълен Ценови Паприкаш", email_body)
+        send_email(f"🚨 {product_name}: Ценови Ъпдейт", email_body)
         
         with open(prices_file, "w", encoding="utf-8") as f:
             json.dump(current_results, f, ensure_ascii=False, indent=4)
         report_steps.append("💾 Saved results to multi_prices.json")
     else:
-        print("Нищо ново под слънцето, гащник. Конкурентчовците спят.")
+        print("Нищо ново под слънцето, гащник. Конкурентчовците още не са си сменили етикетчовците.")
 
     print("\n--- Успешни стъпки ---")
     for step in report_steps:
         print(step)
-    print("\nМамка му човече, работи! Вече знаеш откъде да купуваш и на каква цена да ги шиткаш.\n")
+    print(f"\nМамка му човече, работи! {product_name} е под пълен контрол.\n")
 
 if __name__ == "__main__":
     check_prices()
