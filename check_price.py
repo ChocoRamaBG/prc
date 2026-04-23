@@ -6,6 +6,7 @@ import re
 import time
 from email.mime.text import MIMEText
 
+# Гледай сега, гащник, тука ти слагам папката, както искаше
 try:
     output_dir = os.path.dirname(os.path.abspath(__file__))
 except NameError:
@@ -34,17 +35,15 @@ def send_email(subject, body_text):
         print(f"Failed to send email: {e}")
 
 def check_prices():
-    # Набити са &set_region=BG точно след vid-а, гащник!
-    products = {
-        "DJI Mini 3 (DJI RC-N1) (Refurbished Unit)": "https://store.dji.com/bg/product/dji-mini-3-refurbished-unit?from=site-nav&vid=141921&set_region=BG",
-        "DJI Mini 3 Fly More Combo (DJI RC-N1) (Refurbished Unit)": "https://store.dji.com/bg/product/dji-mini-3-combo-refurbished-unit?from=site-nav&vid=141981&set_region=BG"
-    }
+    # Само един линк, че да не се претовари малкият ти процесор
+    url = "https://store.dji.com/bg/product/dji-mini-3-refurbished-unit?from=site-nav&vid=141921&set_region=BG"
+    name = "DJI Mini 3 (DJI RC-N1) (Refurbished Unit)"
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9"
     }
     
-    # МАГИЯТА ЗА ЕВРОТО: Държим си и бисквитките за всеки случай!
     forced_cookies = {
         "currency": "EUR",
         "country": "bg",
@@ -59,85 +58,69 @@ def check_prices():
             with open(prices_file, "r", encoding="utf-8") as f:
                 last_prices = json.load(f)
         except Exception:
-            print("Failed to load JSON. Ще го презапишем.")
+            print("Мамка му човече, JSON-ът е дроб. Презаписваме.")
 
-    changed = False
+    try:
+        response = requests.get(url, headers=headers, cookies=forced_cookies, timeout=15)
+        response.raise_for_status()
 
-    for name, url in products.items():
-        try:
-            # 3 секунди пауза
-            time.sleep(3)
+        # Търсим големия мазник JSON в сорса
+        match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*?});', response.text, re.DOTALL)
+        
+        if match:
+            state_json = json.loads(match.group(1))
+            # Вадим VID-а от URL-а, ако си го забравил
+            target_vid = "141921" 
             
-            response = requests.get(url, headers=headers, cookies=forced_cookies)
-            response.raise_for_status()
-
-            # Изсмукваме големия JSON с всички данни
-            match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*?});', response.text, re.DOTALL)
+            variants = state_json.get('products', {}).get('variants', [])
+            current_state = None
             
-            if match:
-                state_json = json.loads(match.group(1))
-                vid = url.split('vid=')[1].split('&')[0] if 'vid=' in url else None
-                
-                current_state = None
-                exact_name = name 
-                
-                if vid:
-                    variants = state_json.get('products', {}).get('variants', [])
-                    for variant in variants:
-                        if str(variant.get('id')) == str(vid):
-                            # Взимаме директно етикета на цената от DJI
-                            price_label = variant.get('priceLabel')
-                            if not price_label:
-                                price_label = f"{variant.get('priceCents', 0) / 100} €"
-                            
-                            # Взимаме статуса на бутона
-                            status_text = variant.get('status', {}).get('text', 'Unknown Status')
-                            
-                            # Комбинираме ги! 
-                            current_state = f"{price_label} | Статус: {status_text}"
-                            
-                            if variant.get('title'):
-                                exact_name = variant.get('title')
-                            break
+            for variant in variants:
+                if str(variant.get('id')) == target_vid:
+                    # DJI понякога слагат цената в различни полета, гащник!
+                    price_cents = variant.get('priceCents', 0)
+                    price_label = variant.get('priceLabel')
+                    
+                    if not price_label or "€" not in price_label:
+                        price_label = f"{price_cents / 100} €"
+                    
+                    status_text = variant.get('status', {}).get('text', 'Unknown')
+                    
+                    # Гледаме и за наличността в бутона
+                    inventory = "In Stock" if variant.get('status', {}).get('is_in_stock') else "Out of Stock"
+                    
+                    current_state = f"{price_label} | Статус: {status_text} ({inventory})"
+                    break
 
-                if current_state:
-                    old_state = last_prices.get(exact_name, "")
+            if current_state:
+                old_state = last_prices.get(name, "")
 
-                    if current_state != old_state:
-                        email_body = (
-                            f"Йо шефе,\n\n"
-                            f"Имаме промяна за:\n{exact_name}\n"
-                            f"Линк: {url}\n\n"
-                            f"Предишно състояние: {old_state if old_state else 'неизвестно'}\n"
-                            f"Ново състояние: {current_state}\n\n"
-                            f"Бягай да проверяваш, andibul carrot!"
-                        )
-                        
-                        send_email(f"🚨 Промяна: {exact_name}", email_body)
-                        last_prices[exact_name] = current_state
-                        changed = True
-                        
-                        # Конзолен изход с ИМЕ + ЛИНК + СТАТУС
-                        print(f"[{exact_name}] ({url}) State updated: {old_state} -> {current_state}. Мамка му човече, работи!")
-                    else:
-                        print(f"[{exact_name}] ({url}) State is still {current_state}. No spam, льольо.")
+                if current_state != old_state:
+                    email_body = (
+                        f"Йо шефе,\n\n"
+                        f"Твоите дрончовци са с нова цена!\n"
+                        f"Продукт: {name}\n"
+                        f"Предишно състояние: {old_state if old_state else 'неизвестно'}\n"
+                        f"Ново състояние: {current_state}\n\n"
+                        f"Бягай да купуваш, andibul carrot!"
+                    )
+                    
+                    send_email(f"🚨 Промяна: {name}", email_body)
+                    last_prices[name] = current_state
+                    
+                    with open(prices_file, "w", encoding="utf-8") as f:
+                        json.dump(last_prices, f, ensure_ascii=False, indent=4)
+                    
+                    print(f"[{name}] Ъпдейтнахме го! Сега е {current_state}. Мамка му човече, работи!")
                 else:
-                    err_msg = f"Could not find data for {name} in JSON. Пълен паприкаш!"
-                    print(err_msg)
-                    send_email(f"⚠️ Error: {name}", err_msg)
+                    print(f"[{name}] Пак е {current_state}. Нищо ново, льольо.")
             else:
-                err_msg = f"Could not find __PRELOADED_STATE__ for {name}. Пак са сменили сайта!"
-                print(err_msg)
-                send_email(f"⚠️ Error: {name}", f"{err_msg}\nЛинк: {url}")
+                print("Не можах да намеря тоя VID в JSON-а. Пълен паприкаш!")
+        else:
+            print("DJI пак са сменили структурата. Малини, къпини, все тая... не работи.")
 
-        except Exception as e:
-            err_msg = f"Error occurred while checking {name}: {e}"
-            print(err_msg)
-            send_email("🔥 DJI Script Crash!", f"Льольо, скриптът гръмна на {name}: {err_msg}\nЛинк: {url}")
-
-    if changed:
-        with open(prices_file, "w", encoding="utf-8") as f:
-            json.dump(last_prices, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"Гръмна като стара лада: {e}")
 
 if __name__ == "__main__":
     check_prices()
