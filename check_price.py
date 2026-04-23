@@ -37,38 +37,64 @@ def send_email(subject, body_text):
 
 def get_price_data(url, site_key):
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9"
     }
     
     try:
-        response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
         price = "Unknown"
         status = "Unknown"
 
-        if site_key == "store_dji_bg":
-            # Link 1: store.dji.bg
-            price_elem = soup.find(id="our_price_display")
-            status_elem = soup.find(id="availability_value")
-            price = price_elem.get_text(strip=True) if price_elem else "N/A"
-            status = status_elem.get_text(strip=True) if status_elem else "N/A"
+        if site_key == "dji_global_refurbished":
+            # ТОВА Е НАЙ-ВАЖНОТО! Директно от извора.
+            forced_cookies = {"currency": "EUR", "country": "bg", "region": "BG"}
+            response = requests.get(url, headers=headers, cookies=forced_cookies, timeout=15)
+            response.raise_for_status()
+            
+            # Ровим в JSON-а на DJI Global
+            match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*?});', response.text, re.DOTALL)
+            if match:
+                state_json = json.loads(match.group(1))
+                target_vid = "141921" # VID за DJI Mini 3 Refurbished
+                variants = state_json.get('products', {}).get('variants', [])
+                for v in variants:
+                    if str(v.get('id')) == target_vid:
+                        price = v.get('priceLabel') or f"{v.get('priceCents', 0) / 100} €"
+                        st_text = v.get('status', {}).get('text', 'Unknown Status')
+                        
+                        # Проверка за наличност по текст на бутона
+                        is_in_stock = v.get('in_stock', False) or v.get('status', {}).get('is_in_stock', False)
+                        if st_text in ["Buy Now", "Add to Cart"]:
+                            is_in_stock = True
+                        
+                        status = f"{st_text} ({'In Stock' if is_in_stock else 'Out of Stock'})"
+                        break
+            else:
+                price, status = "JSON Error", "Structure Changed"
 
-        elif site_key == "aerocam_bg":
-            # Link 2: aerocam.bg
-            price_elem = soup.select_one(".live-price-new")
-            # Наличността е малко по-скрита в текста
-            status_match = re.search(r'Наличност:</b>\s*([^<]+)', response.text)
-            price = price_elem.get_text(strip=True) if price_elem else "N/A"
-            status = status_match.group(1).strip() if status_match else "N/A"
+        else:
+            # Другите сайтове ползват BeautifulSoup
+            response = requests.get(url, headers=headers, timeout=15)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
 
-        elif site_key == "copter_bg":
-            # Link 3: copter.bg
-            price_elem = soup.select_one(".current-price-value")
-            status_elem = soup.select_one(".js-product-availability")
-            price = price_elem.get_text(strip=True) if price_elem else "N/A"
-            status = status_elem.get_text(strip=True) if status_elem else "N/A"
+            if site_key == "store_dji_bg":
+                price_elem = soup.find(id="our_price_display")
+                status_elem = soup.find(id="availability_value")
+                price = price_elem.get_text(strip=True) if price_elem else "N/A"
+                status = status_elem.get_text(strip=True) if status_elem else "N/A"
+
+            elif site_key == "aerocam_bg":
+                price_elem = soup.select_one(".live-price-new")
+                status_match = re.search(r'Наличност:</b>\s*([^<]+)', response.text)
+                price = price_elem.get_text(strip=True) if price_elem else "N/A"
+                status = status_match.group(1).strip() if status_match else "N/A"
+
+            elif site_key == "copter_bg":
+                price_elem = soup.select_one(".current-price-value")
+                status_elem = soup.select_one(".js-product-availability")
+                price = price_elem.get_text(strip=True) if price_elem else "N/A"
+                status = status_elem.get_text(strip=True) if status_elem else "N/A"
 
         return {"price": price, "status": status}
     except Exception as e:
@@ -76,7 +102,11 @@ def get_price_data(url, site_key):
 
 def check_prices():
     shops = {
-        "DJI Store Sofia (Official)": {
+        "DJI GLOBAL (SOURCE)": {
+            "url": "https://store.dji.com/bg/product/dji-mini-3-refurbished-unit?from=site-nav&vid=141921&set_region=BG",
+            "key": "dji_global_refurbished"
+        },
+        "DJI Store Sofia (Local)": {
             "url": "https://store.dji.bg/bg/dron-dji-mini-3.html",
             "key": "store_dji_bg"
         },
@@ -93,14 +123,16 @@ def check_prices():
     prices_file = os.path.join(output_dir, "multi_prices.json")
     last_data = {}
     if os.path.exists(prices_file):
-        with open(prices_file, "r", encoding="utf-8") as f:
-            last_data = json.load(f)
+        try:
+            with open(prices_file, "r", encoding="utf-8") as f:
+                last_data = json.load(f)
+        except: pass
 
     current_results = {}
     any_change = False
     report_steps = []
     
-    print("🚀 Стартиране на проверката за DJI Mini 3...")
+    print("🚀 Стартиране на проверката за дрончовци (DJI Mini 3)...")
     report_steps.append("🚀 Session started.")
 
     for name, info in shops.items():
@@ -118,7 +150,18 @@ def check_prices():
     if any_change:
         # Build Email Body
         email_body = "Йо шефе, ето ти пълния паприкаш от цени за DJI Mini 3:\n\n"
+        
+        # Първо слагаме източника за купуване
+        source_name = "DJI GLOBAL (SOURCE)"
+        res = current_results[source_name]
+        email_body += f"🚨 ЦЕНА ЗА КУПУВАНЕ (SOURCE): {res['price']}\n"
+        email_body += f"📦 Статус: {res['status']}\n"
+        email_body += f"🔗 Линк: {shops[source_name]['url']}\n"
+        email_body += "=" * 40 + "\n\n"
+        
+        email_body += "📊 КОНКУРЕНТЧОВЦИ:\n"
         for name, res in current_results.items():
+            if name == source_name: continue
             email_body += f"🏪 {name}\n"
             email_body += f"💰 Цена: {res['price']}\n"
             email_body += f"📦 Статус: {res['status']}\n"
@@ -127,18 +170,18 @@ def check_prices():
         
         email_body += "\nБягай да действаш, andibul carrot!"
         
-        send_email("🚨 DJI Mini 3: Ценова Сводка", email_body)
+        send_email("🚨 DJI Mini 3: Пълен Ценови Паприкаш", email_body)
         
         with open(prices_file, "w", encoding="utf-8") as f:
             json.dump(current_results, f, ensure_ascii=False, indent=4)
         report_steps.append("💾 Saved results to multi_prices.json")
     else:
-        print("Нищо ново под слънцето, гащник.")
+        print("Нищо ново под слънцето, гащник. Конкурентчовците спят.")
 
     print("\n--- Успешни стъпки ---")
     for step in report_steps:
         print(step)
-    print("\nМамка му човече, работи! Всички дрончовци са под контрол.\n")
+    print("\nМамка му човече, работи! Вече знаеш откъде да купуваш и на каква цена да ги шиткаш.\n")
 
 if __name__ == "__main__":
     check_prices()
