@@ -66,12 +66,14 @@ def get_price_data(url, site_key):
     try:
         price = "Unknown"
         status = "Unknown"
+        delivery = "N/A" # <-- Батко чатко ти го добави тук, боклуче!
 
         if site_key == "dji_global_refurbished":
             forced_cookies = {"currency": "EUR", "country": "bg", "region": "BG"}
             response = requests.get(url, headers=headers, cookies=forced_cookies, timeout=15)
             response.raise_for_status()
             
+            # Извличаме цена и статус от JSON паприкаша
             match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*?});', response.text, re.DOTALL)
             if match:
                 state_json = json.loads(match.group(1))
@@ -89,6 +91,21 @@ def get_price_data(url, site_key):
             else:
                 price, status = "JSON Error", "Structure Changed"
 
+            # --- ДОБАВЕНО ОТ БАТКО ЧАТКО ЗА ДАТАТА НА ДОСТАВКА ---
+            try:
+                soup_dji = BeautifulSoup(response.text, 'html.parser')
+                # Търсим оня гнусен span, дето ми го прати
+                del_elem = soup_dji.select_one('span[class*="fast-shipping-text"]')
+                if del_elem:
+                    delivery = del_elem.get_text(strip=True)
+                else:
+                    # Ако ония палавници от DJI сменят класовете, търсим с регекс
+                    del_match = re.search(r'(Free express shipping arrival date:[^<]+)', response.text)
+                    if del_match:
+                        delivery = del_match.group(1).strip()
+            except Exception as e:
+                delivery = f"Грешка при скрапване на датата: {e}"
+
         elif site_key == "emag_bg":
             # Специално за eMAG, защото са палавници и слагат анти-бот защити
             html_text = ""
@@ -98,13 +115,11 @@ def get_price_data(url, site_key):
                 html_text = response.text
             except requests.exceptions.RequestException as req_e:
                 print(f"❌ eMAG хвана бота, льольо! {req_e}")
-                # Взимаме HTML-а дори и да е върнал грешка (напр. 403 Forbidden или 511)
                 if hasattr(req_e, 'response') and req_e.response is not None:
                     html_text = req_e.response.text
                 else:
                     raise req_e
             
-            # Ето ти го "скрийншота" - качваме го онлайн с file.io!
             if html_text:
                 try:
                     files = {'file': ('emag_screenshot.html', html_text.encode('utf-8'))}
@@ -116,7 +131,6 @@ def get_price_data(url, site_key):
                         print(f"❌ file.io умря. Ето ти малко HTML директно тук:\n\n{html_text[:1500]}\n...[TRUNCATED]...")
                 except Exception as upload_e:
                     print(f"❌ What the hell, и облакът не работи: {upload_e}")
-                    print(f"📄 Ето ти първите 1000 символа от HTML-а:\n\n{html_text[:1000]}\n...[TRUNCATED]...")
 
             soup = BeautifulSoup(html_text, 'html.parser')
             
@@ -125,11 +139,9 @@ def get_price_data(url, site_key):
             if price_match:
                 price = price_match.group(1) + " лв."
             else:
-                # Резервен селектор, ако JS-а липсва
                 price_elem = soup.select_one('p.product-new-price[data-test="main-price"]')
                 price = price_elem.get_text(separator='', strip=True) if price_elem else "N/A"
             
-            # Статус
             if '"code":"in_stock"' in html_text or '"availability":{"id":3' in html_text:
                 status = "В наличност"
             elif '"code":"out_of_stock"' in html_text:
@@ -162,10 +174,10 @@ def get_price_data(url, site_key):
                 price = price_elem.get_text(strip=True) if price_elem else "N/A"
                 status = status_elem.get_text(strip=True) if status_elem else "N/A"
 
-        return {"price": price, "status": status}
+        return {"price": price, "status": status, "delivery": delivery}
     except Exception as e:
         print(f"❌ Грешка при скрапване на {site_key}: {e}")
-        return {"price": "Error", "status": str(e)}
+        return {"price": "Error", "status": str(e), "delivery": "Error"}
 
 def check_prices():
     product_full_name = "DJI Mini 3 (DJI RC-N1) (Refurbished Unit)"
@@ -240,6 +252,7 @@ def check_prices():
         source_res = current_results[source_name]
         email_body += f"🚨 ЦЕНА ЗА КУПУВАНЕ (ОТ МАЙКАТА): {source_res['price']}\n"
         email_body += f"📦 Статус: {source_res['status']}\n"
+        email_body += f"🚚 ДОСТАВКА: {source_res.get('delivery', 'Няма инфо')}\n"
         email_body += f"🔗 Линк: {shops[source_name]['url']}\n"
         email_body += "=" * 40 + "\n\n"
         
