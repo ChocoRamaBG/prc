@@ -104,13 +104,19 @@ def get_price_data(url, site_key):
                 else:
                     raise req_e
             
-            # Ето ти го "скрийншота" - качваме го онлайн, за да имаш линкче в логчовците!
+            # Ето ти го "скрийншота" - качваме го онлайн с file.io!
             if html_text:
                 try:
-                    paste_res = requests.put("https://transfer.sh/emag_screenshot.html", data=html_text.encode('utf-8'), timeout=10)
-                    print(f"📸 Ето ти линкче към паприкаша, гащник: {paste_res.text.strip()}")
+                    files = {'file': ('emag_screenshot.html', html_text.encode('utf-8'))}
+                    paste_res = requests.post("https://file.io", files=files, timeout=10)
+                    res_json = paste_res.json()
+                    if paste_res.ok and res_json.get("success"):
+                        print(f"📸 Ето ти линкче към паприкаша (1 сваляне само, гащник!): {res_json.get('link')}")
+                    else:
+                        print(f"❌ file.io умря. Ето ти малко HTML директно тук:\n\n{html_text[:1500]}\n...[TRUNCATED]...")
                 except Exception as upload_e:
-                    print(f"❌ What the hell, не можах да кача файлчовците: {upload_e}")
+                    print(f"❌ What the hell, и облакът не работи: {upload_e}")
+                    print(f"📄 Ето ти първите 1000 символа от HTML-а:\n\n{html_text[:1000]}\n...[TRUNCATED]...")
 
             soup = BeautifulSoup(html_text, 'html.parser')
             
@@ -158,6 +164,7 @@ def get_price_data(url, site_key):
 
         return {"price": price, "status": status}
     except Exception as e:
+        print(f"❌ Грешка при скрапване на {site_key}: {e}")
         return {"price": "Error", "status": str(e)}
 
 def check_prices():
