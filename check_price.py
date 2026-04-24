@@ -232,7 +232,7 @@ def check_prices():
         source_name = "DJI GLOBAL (SOURCE)"
         source_res = current_results[source_name]
 
-        # --- HTML БРУТАЛЕН ДИЗАЙН ---
+        # --- HTML БРУТАЛЕН ДИЗАЙН С DIV-ОВЕ ЗА МОБИЛНИ ---
         email_body = f"""
         <html>
         <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; padding: 20px;">
@@ -278,34 +278,24 @@ def check_prices():
                     </div>
 
                     <h3 style="color: #2f3542; font-size: 18px; margin-bottom: 15px;">📊 ДЕТАЙЛИ ЗА КОНКУРЕНТЧОВЦИ</h3>
-                    <table style="width: 100%; border-collapse: collapse; border-radius: 8px; overflow: hidden; box-shadow: 0 0 5px rgba(0,0,0,0.05);">
-                        <thead>
-                            <tr style="background-color: #2f3542; color: white; text-align: left;">
-                                <th style="padding: 12px 15px;">Магазин</th>
-                                <th style="padding: 12px 15px;">Цена</th>
-                                <th style="padding: 12px 15px;">Статус</th>
-                                <th style="padding: 12px 15px;">Връзка</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                    <div style="display: block;">
         """
         
-        # Добавяме редовете за конкурентите динамично
+        # Добавяме редовете за конкурентите динамично (вече с div-ове вместо счупени table-и)
         for i, (name, res) in enumerate(current_results.items()):
             if name == source_name: continue
             bg_color = "#ffffff" if i % 2 == 0 else "#f1f2f6"
             email_body += f"""
-                            <tr style="background-color: {bg_color}; border-bottom: 1px solid #dfe4ea;">
-                                <td style="padding: 12px 15px; font-weight: bold;">🏪 {name}</td>
-                                <td style="padding: 12px 15px; color: #ff4757; font-weight: bold;">{res['price']}</td>
-                                <td style="padding: 12px 15px;">{res['status']}</td>
-                                <td style="padding: 12px 15px;"><a href="{shops[name]['url']}" style="color: #1e90ff; text-decoration: none;">🔗 Линк</a></td>
-                            </tr>
+                        <div style="background-color: {bg_color}; border: 1px solid #dfe4ea; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                            <div style="font-weight: bold; font-size: 16px; color: #2f3542; border-bottom: 1px solid #ced6e0; padding-bottom: 8px; margin-bottom: 10px;">🏪 Магазин: {name}</div>
+                            <div style="margin-bottom: 6px;"><strong>Цена:</strong> <span style="color: #ff4757; font-weight: bold; font-size: 16px;">{res['price']}</span></div>
+                            <div style="margin-bottom: 10px;"><strong>Статус:</strong> {res['status']}</div>
+                            <div><a href="{shops[name]['url']}" style="display: inline-block; background-color: #1e90ff; color: white; padding: 8px 12px; text-decoration: none; border-radius: 5px; font-size: 14px; font-weight: bold;">🔗 Към офертата</a></div>
+                        </div>
             """
             
         email_body += """
-                        </tbody>
-                    </table>
+                    </div>
 
                     <div style="margin-top: 30px; text-align: center; background-color: #ffa502; padding: 15px; border-radius: 8px; color: white; font-weight: bold; font-size: 16px;">
                         Бягай да действаш, преди някой друг палавник да ги изкупи, andibul carrot! 🥕
