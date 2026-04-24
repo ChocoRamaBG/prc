@@ -91,7 +91,10 @@ def get_price_data(url, site_key):
         elif site_key == "emag_bg":
             html_text = ""
             try:
-                response = requests.get(url, headers=headers, timeout=15)
+                # Батко чатко мами системата
+                emag_headers = headers.copy()
+                emag_headers["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                response = requests.get(url, headers=emag_headers, timeout=20)
                 response.raise_for_status()
                 html_text = response.text
             except requests.exceptions.RequestException as req_e:
@@ -100,23 +103,28 @@ def get_price_data(url, site_key):
                 else:
                     raise req_e
 
-            soup = BeautifulSoup(html_text, 'html.parser')
-            
-            # Батко чатко фикс v3 за eMAG - тия гащници имат два pricing-block-а и първият е празен в менюто! Баси филма!
-            price_elem = soup.select_one('p.product-new-price[data-test="main-price"]')
-            if price_elem:
-                price = price_elem.get_text(separator='', strip=True)
+            # Проверка дали са ни нацелили с CAPTCHA
+            if "captcha" in html_text.lower() or "challenge-platform" in html_text.lower():
+                price = "N/A"
+                status = "Блокиран от CAPTCHA (Cloudflare)"
             else:
-                price_match = re.search(r'EM\.productDiscountedPrice\s*=\s*([\d.]+);', html_text)
-                price = price_match.group(1) + " €" if price_match else "N/A"
-            
-            if '"code":"in_stock"' in html_text or '"availability":{"id":3' in html_text:
-                status = "В наличност"
-            elif '"code":"out_of_stock"' in html_text:
-                status = "Няма наличност"
-            else:
-                status_elem = soup.select_one(".label-in_stock, .label-out_of_stock, .label-limited_stock")
-                status = status_elem.get_text(strip=True) if status_elem else "Unknown"
+                soup = BeautifulSoup(html_text, 'html.parser')
+                
+                # По-широк селектор, за да не гърми
+                price_elem = soup.select_one('p.product-new-price')
+                if price_elem:
+                    price = price_elem.get_text(separator='', strip=True)
+                else:
+                    price_match = re.search(r'EM\.productDiscountedPrice\s*=\s*([\d.]+)', html_text)
+                    price = price_match.group(1) + " €" if price_match else "N/A"
+                
+                if '"code":"in_stock"' in html_text or '"availability":{"id":3' in html_text:
+                    status = "В наличност"
+                elif '"code":"out_of_stock"' in html_text:
+                    status = "Няма наличност"
+                else:
+                    status_elem = soup.select_one(".label-in_stock, .label-out_of_stock, .label-limited_stock")
+                    status = status_elem.get_text(strip=True) if status_elem else "Unknown"
 
         else:
             response = requests.get(url, headers=headers, timeout=15)
