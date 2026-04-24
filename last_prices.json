@@ -16,8 +16,8 @@
         "status": "В наличност"
     },
     "eMAG.bg": {
-        "price": "N/A",
-        "status": "Unknown"
+        "price": "Error",
+        "status": "Липсва cloudscraper"
     },
     "Drones.bg": {
         "price": "339,00 €",
