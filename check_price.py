@@ -147,6 +147,18 @@ def get_price_data(url, site_key):
                 price = price_elem.get_text(strip=True) if price_elem else "N/A"
                 status = status_elem.get_text(strip=True) if status_elem else "N/A"
 
+            elif site_key == "drones_bg":
+                # Търсим промоционалната цена в <ins>, ако я няма - нормалната
+                ins_elem = soup.select_one('p.price ins span.woocommerce-Price-amount bdi')
+                if ins_elem:
+                    price = ins_elem.get_text(separator=' ', strip=True)
+                else:
+                    price_elem = soup.select_one('p.price span.woocommerce-Price-amount bdi')
+                    price = price_elem.get_text(separator=' ', strip=True) if price_elem else "N/A"
+
+                status_elem = soup.select_one('.stock')
+                status = status_elem.get_text(strip=True) if status_elem else "В наличност"
+
         return {"price": price, "status": status}
     except Exception as e:
         print(f"❌ Грешка при скрапване на {site_key}: {e}")
@@ -175,6 +187,10 @@ def check_prices():
         "eMAG.bg": {
             "url": "https://www.emag.bg/dron-dji-mini-3-4k-hdr-cp-ma-00000584-01/pd/D2DBDQMBM/",
             "key": "emag_bg"
+        },
+        "Drones.bg": {
+            "url": "https://drones.bg/magazin/dronove-dji/vsichki-dji-dronove/dron-dji-mini-3/",
+            "key": "drones_bg"
         }
     }
 
