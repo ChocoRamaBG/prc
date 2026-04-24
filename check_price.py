@@ -22,7 +22,8 @@ def send_email(subject, body_text):
         print("❌ No email credentials found. Андибул морков! Провери си GitHub Secrets!")
         return
 
-    msg = MIMEText(body_text)
+    # Внимание, гащник! Тук сменяме на HTML, за да е красиво!
+    msg = MIMEText(body_text, 'html', 'utf-8')
     msg['Subject'] = subject
     msg['From'] = sender
     msg['To'] = receiver
@@ -39,9 +40,7 @@ def clean_price(price_str):
     """Превръща тия криви стрингове в чисти числа за смятане, льольо!"""
     if not price_str or "Error" in price_str or "N/A" in price_str:
         return 0.0
-    # Махаме всичко, което не е цифра, точка или запетая
     cleaned = re.sub(r'[^\d.,]', '', str(price_str))
-    # Оправяме запетайките, че става паприкаш
     if ',' in cleaned and '.' in cleaned:
         cleaned = cleaned.replace(',', '')
     elif ',' in cleaned:
@@ -52,7 +51,7 @@ def clean_price(price_str):
         return 0.0
 
 def get_price_data(url, site_key):
-    # What the fuck, слагаме истински хедърчовци, за да не ни хванат че сме бот!
+    # Хедърчовци, за да не ни хванат че сме бот!
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -90,7 +89,6 @@ def get_price_data(url, site_key):
                 price, status = "JSON Error", "Structure Changed"
 
         elif site_key == "emag_bg":
-            # Специално за eMAG, защото са палавници и слагат анти-бот защити
             html_text = ""
             try:
                 response = requests.get(url, headers=headers, timeout=15)
@@ -188,7 +186,6 @@ def check_prices():
         }
     }
 
-    # Мамка му, оправено име на файла, за да ти минава GitHub Action-а!
     prices_file = os.path.join(output_dir, "last_prices.json")
     
     last_data = {}
@@ -218,7 +215,6 @@ def check_prices():
             report_steps.append(f"😴 Без промяна в {name} ({data['price']})")
 
     if any_change:
-        # --- ИЗЧИСЛЯВАНЕ НА БИЗНЕС МЕТРИКИ (ЗА ПАЛАВНИЦИ) ---
         source_price_val = clean_price(current_results["DJI GLOBAL (SOURCE)"]["price"])
         comp_prices = []
         for name, res in current_results.items():
@@ -228,45 +224,97 @@ def check_prices():
         
         min_comp_price = min(comp_prices) if comp_prices else 0.0
         potential_profit = min_comp_price - source_price_val if min_comp_price > 0 else 0.0
-        
-        # Нашето любимо ROI (Възвръщаемост на инвестицията)
         roi_pct = (potential_profit / source_price_val * 100) if source_price_val > 0 else 0.0
-        
-        # Марж на печалбата (Profit Margin)
         profit_margin_pct = (potential_profit / min_comp_price * 100) if min_comp_price > 0 else 0.0
-        
-        # Минимална цена за 15% ROI 
         min_sell_price_15_roi = source_price_val * 1.15
 
-        # Build Email Body
-        email_body = f"Йо шефе как си днес, ето ти пълния ценови паприкаш за:\n🔥 {product_full_name} 🔥\n\n"
-        
         source_name = "DJI GLOBAL (SOURCE)"
         source_res = current_results[source_name]
-        email_body += f"🚨 ЦЕНА ЗА КУПУВАНЕ (ОТ МАЙКАТА): {source_res['price']}\n"
-        email_body += f"📦 Статус: {source_res['status']}\n"
-        email_body += f"🔗 Линк: {shops[source_name]['url']}\n"
-        email_body += "=" * 40 + "\n\n"
-        
-        email_body += "🚀 БИЗНЕС АНАЛИЗ (МЕТРИКИ ЗА ПРОФИТЧОВЦИ):\n"
-        email_body += f"💸 Най-ниска цена при конкурентчовци: {min_comp_price:.2f} €\n"
-        email_body += f"💰 Потенциална брутна печалба: {potential_profit:.2f} €\n"
-        email_body += f"📈 Възвръщаемост (ROI): {roi_pct:.1f}%\n"
-        email_body += f"📉 Марж на печалбата (Profit Margin): {profit_margin_pct:.1f}%\n"
-        email_body += f"🎯 Минимална продажна цена за 15% ROI: {min_sell_price_15_roi:.2f} €\n"
-        email_body += "------------------------------\n\n"
 
-        email_body += "📊 ДЕТАЙЛИ ЗА КОНКУРЕНТЧОВЦИ:\n"
-        for name, res in current_results.items():
+        # --- HTML БРУТАЛЕН ДИЗАЙН ---
+        email_body = f"""
+        <html>
+        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; padding: 20px;">
+            <div style="max-width: 700px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                
+                <div style="background-color: #ff4757; padding: 20px; text-align: center; color: white;">
+                    <h2 style="margin: 0; font-size: 24px;">Йо шефе как си днес!</h2>
+                    <p style="margin: 5px 0 0 0; font-size: 16px;">Ето ти пълния ценови паприкаш за:<br/><strong>🔥 {product_full_name} 🔥</strong></p>
+                </div>
+
+                <div style="padding: 25px;">
+                    <div style="background-color: #fff0f1; border-left: 5px solid #ff4757; padding: 15px; border-radius: 4px; margin-bottom: 25px;">
+                        <h3 style="margin-top: 0; color: #ff4757; font-size: 18px;">🚨 ЦЕНА ЗА КУПУВАНЕ (ОТ МАЙКАТА)</h3>
+                        <p style="margin: 5px 0; font-size: 18px;"><strong>Цена:</strong> <span style="font-size: 22px; color: #2ed573; font-weight: bold;">{source_res['price']}</span></p>
+                        <p style="margin: 5px 0;"><strong>Статус:</strong> {source_res['status']}</p>
+                        <a href="{shops[source_name]['url']}" style="display: inline-block; margin-top: 10px; background-color: #ff4757; color: white; padding: 8px 15px; text-decoration: none; border-radius: 5px; font-weight: bold;">🔗 Купи от тук</a>
+                    </div>
+
+                    <div style="background-color: #f1f2f6; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #dfe4ea;">
+                        <h3 style="margin-top: 0; color: #2f3542; font-size: 18px; border-bottom: 2px solid #ced6e0; padding-bottom: 10px;">🚀 БИЗНЕС АНАЛИЗ (МЕТРИКИ ЗА ПРОФИТЧОВЦИ)</h3>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #dfe4ea;">💸 Най-ниска цена при конкурентчовци:</td>
+                                <td style="text-align: right; font-weight: bold;">{min_comp_price:.2f} €</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #dfe4ea;">💰 Потенциална брутна печалба:</td>
+                                <td style="text-align: right; font-weight: bold; color: #2ed573;">{potential_profit:.2f} €</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #dfe4ea;">📈 Възвръщаемост (ROI):</td>
+                                <td style="text-align: right; font-weight: bold; color: {'#2ed573' if roi_pct >= 15 else '#ff4757'};">{roi_pct:.1f}%</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #dfe4ea;">📉 Марж на печалбата:</td>
+                                <td style="text-align: right; font-weight: bold;">{profit_margin_pct:.1f}%</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold;">🎯 Цена за минимум 15% ROI:</td>
+                                <td style="text-align: right; font-weight: bold; color: #1e90ff;">{min_sell_price_15_roi:.2f} €</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <h3 style="color: #2f3542; font-size: 18px; margin-bottom: 15px;">📊 ДЕТАЙЛИ ЗА КОНКУРЕНТЧОВЦИ</h3>
+                    <table style="width: 100%; border-collapse: collapse; border-radius: 8px; overflow: hidden; box-shadow: 0 0 5px rgba(0,0,0,0.05);">
+                        <thead>
+                            <tr style="background-color: #2f3542; color: white; text-align: left;">
+                                <th style="padding: 12px 15px;">Магазин</th>
+                                <th style="padding: 12px 15px;">Цена</th>
+                                <th style="padding: 12px 15px;">Статус</th>
+                                <th style="padding: 12px 15px;">Връзка</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        """
+        
+        # Добавяме редовете за конкурентите динамично
+        for i, (name, res) in enumerate(current_results.items()):
             if name == source_name: continue
-            email_body += f"🏪 {name}\n"
-            email_body += f"💰 Цена: {res['price']}\n"
-            email_body += f"📦 Статус: {res['status']}\n"
-            email_body += f"🔗 Линк: {shops[name]['url']}\n"
-            email_body += "-" * 30 + "\n"
-        
-        email_body += "\nБягай да действаш, преди някой друг палавник да ги изкупи, andibul carrot!"
-        
+            bg_color = "#ffffff" if i % 2 == 0 else "#f1f2f6"
+            email_body += f"""
+                            <tr style="background-color: {bg_color}; border-bottom: 1px solid #dfe4ea;">
+                                <td style="padding: 12px 15px; font-weight: bold;">🏪 {name}</td>
+                                <td style="padding: 12px 15px; color: #ff4757; font-weight: bold;">{res['price']}</td>
+                                <td style="padding: 12px 15px;">{res['status']}</td>
+                                <td style="padding: 12px 15px;"><a href="{shops[name]['url']}" style="color: #1e90ff; text-decoration: none;">🔗 Линк</a></td>
+                            </tr>
+            """
+            
+        email_body += """
+                        </tbody>
+                    </table>
+
+                    <div style="margin-top: 30px; text-align: center; background-color: #ffa502; padding: 15px; border-radius: 8px; color: white; font-weight: bold; font-size: 16px;">
+                        Бягай да действаш, преди някой друг палавник да ги изкупи, andibul carrot! 🥕
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
         send_email(f"🚨 {product_full_name}: Пълен Бизнес Анализ", email_body)
         
         with open(prices_file, "w", encoding="utf-8") as f:
