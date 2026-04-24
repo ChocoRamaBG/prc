@@ -105,16 +105,17 @@ def get_price_data(url, site_key, target_vid=None):
                 status = status_elem.get_text(strip=True) if status_elem else "N/A"
 
             elif site_key == "emag_bg":
-                # eMAG е хитра лисица, ползваме мета таговете им
+                # eMAG се правят на интересни, ама мета таговете не лъжат
                 price_meta = soup.find("meta", property="product:price:amount")
                 price = f"{price_meta['content']} €" if price_meta else "N/A"
-                # За наличност в eMAG
-                if "В наличност" in response.text:
+                
+                avail_meta = soup.find("meta", property="product:availability")
+                if avail_meta and "instock" in avail_meta.get('content', '').lower():
                     status = "В наличност"
-                elif "изчерпан" in response.text.lower():
-                    status = "Изчерпан"
+                elif "В наличност" in response.text:
+                    status = "В наличност"
                 else:
-                    status = "Провери сайта"
+                    status = "Няма наличност"
 
         return {"price": price, "status": status}
     except Exception as e:
@@ -184,7 +185,7 @@ def check_prices():
         profit = min_comp - source_val if min_comp > 0 else 0.0
         roi = (profit / source_val * 100) if source_val > 0 else 0.0
         
-        # Проверка дали "майката" е сменила цената - това е сигнал за атака!
+        # Проверка за промяна
         old_source_price = last_data.get(p_name, {}).get("source_price", 0.0)
         if source_val != old_source_price and source_val > 0:
             any_major_change = True
@@ -213,16 +214,16 @@ def check_prices():
             email_body += f"🚦 СТАТУС: {rep['source']['status']}\n"
             email_body += f"💵 ПРЕДПОЛАГАЕМ ПРОФИТ: {rep['metrics']['profit']:.2f} €\n"
             email_body += f"📈 ROI (Възвръщаемост): {rep['metrics']['roi']:.1f}%\n"
-            email_body += f"⚖️ Пазарна средна: {rep['metrics']['avg_comp']:.2f} €\n"
-            email_body += f"📉 Най-ниска в БГ: {rep['metrics']['min_comp']:.2f} €\n"
+            email_body += f"⚖️ Пазарна средна в БГ: {rep['metrics']['avg_comp']:.2f} €\n"
+            email_body += f"📉 Най-ниска цена в БГ: {rep['metrics']['min_comp']:.2f} €\n"
             email_body += f"🔗 Линк за покупка: {rep['url']}\n"
-            email_body += "\n--- Конкурентчовци ---\n"
+            email_body += "\n--- Детайли по магазини ---\n"
             for s_name, s_data in rep['local'].items():
                 email_body += f"   - {s_name}: {s_data['price']} ({s_data['status']})\n"
             email_body += "=" * 45 + "\n\n"
         
         email_body += "Бягай да действаш, преди конкурентчовците да се събудят, andibul carrot!"
-        send_email("🚨 DJI Market Intelligence: Профит Дебне!", email_body)
+        send_email("🚨 DJI Market Intelligence: Нова далавера дебне!", email_body)
         
         # Запазваме историята
         new_history = {r["name"]: {"source_price": clean_price(r["source"]["price"])} for r in all_reports}
