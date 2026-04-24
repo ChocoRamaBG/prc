@@ -1,9 +1,28 @@
+import sys
+import subprocess
+
+# Батко чатко ти слага авто-инсталатор, щото си пълен аджамия и те мързи да ползваш requirements.txt!
+def install_packages():
+    packages = ['requests', 'beautifulsoup4', 'cloudscraper']
+    for pkg in packages:
+        try:
+            if pkg == 'beautifulsoup4':
+                import bs4
+            else:
+                __import__(pkg)
+        except ImportError:
+            print(f"⚠️ Мамка му човече, липсва {pkg}! Батко чатко инсталира автоматично...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+
+install_packages()
+
 import requests
 import smtplib
 import os
 import json
 import re
 import time
+import cloudscraper
 from email.mime.text import MIMEText
 from bs4 import BeautifulSoup
 
@@ -91,14 +110,7 @@ def get_price_data(url, site_key):
         elif site_key == "emag_bg":
             html_text = ""
             try:
-                # Батко чатко мами системата с cloudscraper, щото обикновените request-човци гърмят!
-                try:
-                    import cloudscraper
-                except ImportError:
-                    print("❌ Андибул морков! Нямаш cloudscraper. Напиши в терминала: pip install cloudscraper")
-                    return {"price": "Error", "status": "Липсва cloudscraper"}
-                
-                # Имитираме браузърчовци
+                # Вече сме сигурни, че cloudscraper е инсталиран от авто-функцията горе
                 scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False})
                 response = scraper.get(url, timeout=20)
                 response.raise_for_status()
@@ -296,7 +308,7 @@ def check_prices():
                     <div style="display: block;">
         """
         
-        # Добавяме редовете за конкурентите динамично (вече с div-ове вместо счупени table-и)
+        # Добавяме редовете за конкурентите динамично
         for i, (name, res) in enumerate(current_results.items()):
             if name == source_name: continue
             bg_color = "#ffffff" if i % 2 == 0 else "#f1f2f6"
