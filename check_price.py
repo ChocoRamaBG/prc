@@ -106,6 +106,12 @@ def get_price_data(url, site_key):
                 price = price_elem.get_text(strip=True) if price_elem else "N/A"
                 status = status_elem.get_text(strip=True) if status_elem else "N/A"
 
+            elif site_key == "emag_bg":
+                price_elem = soup.select_one(".product-new-price")
+                status_elem = soup.select_one(".label-in_stock, .label-out_of_stock, .label-limited_stock")
+                price = price_elem.get_text(strip=True) if price_elem else "N/A"
+                status = status_elem.get_text(strip=True) if status_elem else "N/A"
+
         return {"price": price, "status": status}
     except Exception as e:
         return {"price": "Error", "status": str(e)}
@@ -129,6 +135,10 @@ def check_prices():
         "Copter.bg": {
             "url": "https://www.copter.bg/bg/dron-dji-mini-3.html",
             "key": "copter_bg"
+        },
+        "eMAG.bg": {
+            "url": "https://www.emag.bg/dron-dji-mini-3-4k-hdr-cp-ma-00000584-01/pd/D2DBDQMBM/",
+            "key": "emag_bg"
         }
     }
 
