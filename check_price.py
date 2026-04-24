@@ -98,17 +98,19 @@ def get_price_data(url, site_key):
                 html_text = response.text
             except requests.exceptions.RequestException as req_e:
                 print(f"❌ eMAG хвана бота, льольо! {req_e}")
-                # Взимаме HTML-а дори и да е върнал грешка (напр. 403 Forbidden)
+                # Взимаме HTML-а дори и да е върнал грешка (напр. 403 Forbidden или 511)
                 if hasattr(req_e, 'response') and req_e.response is not None:
                     html_text = req_e.response.text
                 else:
                     raise req_e
             
-            # Ето ти го "скрийншота" - запазваме HTML-а във файл
-            debug_path = os.path.join(output_dir, "emag_screenshot.html")
-            with open(debug_path, "w", encoding="utf-8") as f:
-                f.write(html_text)
-            print(f"📸 Цъкнах ти 'screenshot' в {debug_path}. Отваряй го в браузъра и гледай паприкаша!")
+            # Ето ти го "скрийншота" - качваме го онлайн, за да имаш линкче в логчовците!
+            if html_text:
+                try:
+                    paste_res = requests.put("https://transfer.sh/emag_screenshot.html", data=html_text.encode('utf-8'), timeout=10)
+                    print(f"📸 Ето ти линкче към паприкаша, гащник: {paste_res.text.strip()}")
+                except Exception as upload_e:
+                    print(f"❌ What the hell, не можах да кача файлчовците: {upload_e}")
 
             soup = BeautifulSoup(html_text, 'html.parser')
             
