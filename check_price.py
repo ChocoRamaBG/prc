@@ -97,7 +97,6 @@ def get_price_data(url, site_key):
                 response.raise_for_status()
                 html_text = response.text
             except requests.exceptions.RequestException as req_e:
-                # Взимаме HTML-а дори и да е върнал грешка (напр. 403 Forbidden или 511)
                 if hasattr(req_e, 'response') and req_e.response is not None:
                     html_text = req_e.response.text
                 else:
@@ -105,16 +104,13 @@ def get_price_data(url, site_key):
 
             soup = BeautifulSoup(html_text, 'html.parser')
             
-            # Пробваме първо през JS
             price_match = re.search(r'EM\.productDiscountedPrice\s*=\s*([\d.]+);', html_text)
             if price_match:
                 price = price_match.group(1) + " лв."
             else:
-                # Резервен селектор, ако JS-а липсва
                 price_elem = soup.select_one('p.product-new-price[data-test="main-price"]')
                 price = price_elem.get_text(separator='', strip=True) if price_elem else "N/A"
             
-            # Статус
             if '"code":"in_stock"' in html_text or '"availability":{"id":3' in html_text:
                 status = "В наличност"
             elif '"code":"out_of_stock"' in html_text:
@@ -124,7 +120,6 @@ def get_price_data(url, site_key):
                 status = status_elem.get_text(strip=True) if status_elem else "Unknown"
 
         else:
-            # За останалите сайтчовци
             response = requests.get(url, headers=headers, timeout=15)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -148,7 +143,6 @@ def get_price_data(url, site_key):
                 status = status_elem.get_text(strip=True) if status_elem else "N/A"
 
             elif site_key == "drones_bg":
-                # Търсим промоционалната цена в <ins>, ако я няма - нормалната
                 ins_elem = soup.select_one('p.price ins span.woocommerce-Price-amount bdi')
                 if ins_elem:
                     price = ins_elem.get_text(separator=' ', strip=True)
@@ -234,10 +228,18 @@ def check_prices():
         
         min_comp_price = min(comp_prices) if comp_prices else 0.0
         potential_profit = min_comp_price - source_price_val if min_comp_price > 0 else 0.0
-        margin_pct = (potential_profit / source_price_val * 100) if source_price_val > 0 else 0.0
+        
+        # Нашето любимо ROI (Възвръщаемост на инвестицията)
+        roi_pct = (potential_profit / source_price_val * 100) if source_price_val > 0 else 0.0
+        
+        # Марж на печалбата (Profit Margin)
+        profit_margin_pct = (potential_profit / min_comp_price * 100) if min_comp_price > 0 else 0.0
+        
+        # Минимална цена за 15% ROI 
+        min_sell_price_15_roi = source_price_val * 1.15
 
         # Build Email Body
-        email_body = f"Йо шефе, ето ти пълния ценови паприкаш за:\n🔥 {product_full_name} 🔥\n\n"
+        email_body = f"Йо шефе как си днес, ето ти пълния ценови паприкаш за:\n🔥 {product_full_name} 🔥\n\n"
         
         source_name = "DJI GLOBAL (SOURCE)"
         source_res = current_results[source_name]
@@ -249,7 +251,9 @@ def check_prices():
         email_body += "🚀 БИЗНЕС АНАЛИЗ (МЕТРИКИ ЗА ПРОФИТЧОВЦИ):\n"
         email_body += f"💸 Най-ниска цена при конкурентчовци: {min_comp_price:.2f} €\n"
         email_body += f"💰 Потенциална брутна печалба: {potential_profit:.2f} €\n"
-        email_body += f"📈 Възвръщаемост (ROI): {margin_pct:.1f}%\n"
+        email_body += f"📈 Възвръщаемост (ROI): {roi_pct:.1f}%\n"
+        email_body += f"📉 Марж на печалбата (Profit Margin): {profit_margin_pct:.1f}%\n"
+        email_body += f"🎯 Минимална продажна цена за 15% ROI: {min_sell_price_15_roi:.2f} €\n"
         email_body += "------------------------------\n\n"
 
         email_body += "📊 ДЕТАЙЛИ ЗА КОНКУРЕНТЧОВЦИ:\n"
