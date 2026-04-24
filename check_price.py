@@ -93,16 +93,16 @@ def get_price_data(url, site_key):
 
             # --- ДОБАВЕНО ОТ БАТКО ЧАТКО ЗА ДАТАТА НА ДОСТАВКА ---
             try:
-                soup_dji = BeautifulSoup(response.text, 'html.parser')
-                # Търсим оня гнусен span, дето ми го прати
-                del_elem = soup_dji.select_one('span[class*="fast-shipping-text"]')
-                if del_elem:
-                    delivery = del_elem.get_text(strip=True)
+                # Малини, къпини, все тая, слагаме брутални регексчовци
+                # Търсим директно из целия паприкаш, щото може да е скрито в някой JSON
+                del_match = re.search(r'(Free express shipping arrival date:\s*[^<"\'}\\]+)', response.text, re.IGNORECASE)
+                if del_match:
+                    delivery = del_match.group(1).strip()
                 else:
-                    # Ако ония палавници от DJI сменят класовете, търсим с регекс
-                    del_match = re.search(r'(Free express shipping arrival date:[^<]+)', response.text)
-                    if del_match:
-                        delivery = del_match.group(1).strip()
+                    soup_dji = BeautifulSoup(response.text, 'html.parser')
+                    del_elem = soup_dji.select_one('span[class*="fast-shipping-text"]')
+                    if del_elem:
+                        delivery = del_elem.get_text(strip=True)
             except Exception as e:
                 delivery = f"Грешка при скрапване на датата: {e}"
 
