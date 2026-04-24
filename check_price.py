@@ -107,15 +107,17 @@ def get_price_data(url, site_key):
                 status = status_elem.get_text(strip=True) if status_elem else "N/A"
 
             elif site_key == "emag_bg":
-                price_elem = soup.select_one(".product-new-price")
+                # Хващаме точно главната цена с data-test атрибута, за да няма хън-мън
+                price_elem = soup.select_one('p.product-new-price[data-test="main-price"]')
                 status_elem = soup.select_one(".label-in_stock, .label-out_of_stock, .label-limited_stock")
-                price = price_elem.get_text(strip=True) if price_elem else "N/A"
+                
+                # get_text() с празен сепаратор маха гадните таговци и събира "353", ",59" и "€"
+                price = price_elem.get_text(separator='', strip=True) if price_elem else "N/A"
                 status = status_elem.get_text(strip=True) if status_elem else "N/A"
 
         return {"price": price, "status": status}
     except Exception as e:
         return {"price": "Error", "status": str(e)}
-
 def check_prices():
     product_full_name = "DJI Mini 3 (DJI RC-N1) (Refurbished Unit)"
     
