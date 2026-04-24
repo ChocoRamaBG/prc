@@ -16,11 +16,11 @@
         "status": "В наличност"
     },
     "eMAG.bg": {
-        "price": "353.59 лв.",
-        "status": "В наличност"
+        "price": "N/A",
+        "status": "Unknown"
     },
     "Drones.bg": {
-        "price": "N/A",
+        "price": "339,00 €",
         "status": "В наличност"
     }
 }
