@@ -40,7 +40,7 @@ def clean_price(price_str):
     if not price_str or "Error" in price_str or "N/A" in price_str:
         return 0.0
     # Махаме всичко, което не е цифра, точка или запетая
-    cleaned = re.sub(r'[^\d.,]', '', price_str)
+    cleaned = re.sub(r'[^\d.,]', '', str(price_str))
     # Оправяме запетайките, че става паприкаш
     if ',' in cleaned and '.' in cleaned:
         cleaned = cleaned.replace(',', '')
@@ -52,9 +52,15 @@ def clean_price(price_str):
         return 0.0
 
 def get_price_data(url, site_key):
+    # What the fuck, слагаме истински хедърчовци, за да не ни хванат че сме бот!
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "bg-BG,bg;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Sec-Ch-Ua": '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Upgrade-Insecure-Requests": "1"
     }
     
     try:
@@ -107,17 +113,28 @@ def get_price_data(url, site_key):
                 status = status_elem.get_text(strip=True) if status_elem else "N/A"
 
             elif site_key == "emag_bg":
-                # Хващаме точно главната цена с data-test атрибута, за да няма хън-мън
-                price_elem = soup.select_one('p.product-new-price[data-test="main-price"]')
-                status_elem = soup.select_one(".label-in_stock, .label-out_of_stock, .label-limited_stock")
+                # Hell yeah, eMAG са скрили цената в JS! Извличаме я директно от там.
+                price_match = re.search(r'EM\.productDiscountedPrice\s*=\s*([\d.]+);', response.text)
+                if price_match:
+                    price = price_match.group(1) + " €" # или лв., зависи какво очакваш
+                else:
+                    # Резервен селектор, ако JS-а липсва, щото са пълен паприкаш
+                    price_elem = soup.select_one('p.product-new-price')
+                    price = price_elem.get_text(separator='', strip=True) if price_elem else "N/A"
                 
-                # get_text() с празен сепаратор маха гадните таговци и събира "353", ",59" и "€"
-                price = price_elem.get_text(separator='', strip=True) if price_elem else "N/A"
-                status = status_elem.get_text(strip=True) if status_elem else "N/A"
+                # Статусът също го има в JSON/JS кода
+                if '"code":"in_stock"' in response.text or '"availability":{"id":3' in response.text:
+                    status = "В наличност"
+                elif '"code":"out_of_stock"' in response.text:
+                    status = "Няма наличност"
+                else:
+                    status_elem = soup.select_one(".label-in_stock, .label-out_of_stock, .label-limited_stock")
+                    status = status_elem.get_text(strip=True) if status_elem else "Unknown"
 
         return {"price": price, "status": status}
     except Exception as e:
         return {"price": "Error", "status": str(e)}
+
 def check_prices():
     product_full_name = "DJI Mini 3 (DJI RC-N1) (Refurbished Unit)"
     
