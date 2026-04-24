@@ -102,13 +102,13 @@ def get_price_data(url, site_key):
 
             soup = BeautifulSoup(html_text, 'html.parser')
             
-            # Батко чатко фикс за eMAG - влизаме директно в pricing-block
-            price_container = soup.select_one('.pricing-block')
-            if price_container:
-                price_elem = price_container.select_one('p.product-new-price[data-test="main-price"]')
-                price = price_elem.get_text(separator='', strip=True) if price_elem else "N/A"
+            # Батко чатко фикс v3 за eMAG - тия гащници имат два pricing-block-а и първият е празен в менюто! Баси филма!
+            price_elem = soup.select_one('p.product-new-price[data-test="main-price"]')
+            if price_elem:
+                price = price_elem.get_text(separator='', strip=True)
             else:
-                price = "N/A"
+                price_match = re.search(r'EM\.productDiscountedPrice\s*=\s*([\d.]+);', html_text)
+                price = price_match.group(1) + " €" if price_match else "N/A"
             
             if '"code":"in_stock"' in html_text or '"availability":{"id":3' in html_text:
                 status = "В наличност"
