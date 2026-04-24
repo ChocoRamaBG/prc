@@ -89,7 +89,49 @@ def get_price_data(url, site_key):
             else:
                 price, status = "JSON Error", "Structure Changed"
 
+        elif site_key == "emag_bg":
+            # Специално за eMAG, защото са палавници и слагат анти-бот защити
+            html_text = ""
+            try:
+                response = requests.get(url, headers=headers, timeout=15)
+                response.raise_for_status()
+                html_text = response.text
+            except requests.exceptions.RequestException as req_e:
+                print(f"❌ eMAG хвана бота, льольо! {req_e}")
+                # Взимаме HTML-а дори и да е върнал грешка (напр. 403 Forbidden)
+                if hasattr(req_e, 'response') and req_e.response is not None:
+                    html_text = req_e.response.text
+                else:
+                    raise req_e
+            
+            # Ето ти го "скрийншота" - запазваме HTML-а във файл
+            debug_path = os.path.join(output_dir, "emag_screenshot.html")
+            with open(debug_path, "w", encoding="utf-8") as f:
+                f.write(html_text)
+            print(f"📸 Цъкнах ти 'screenshot' в {debug_path}. Отваряй го в браузъра и гледай паприкаша!")
+
+            soup = BeautifulSoup(html_text, 'html.parser')
+            
+            # Пробваме първо през JS
+            price_match = re.search(r'EM\.productDiscountedPrice\s*=\s*([\d.]+);', html_text)
+            if price_match:
+                price = price_match.group(1) + " лв."
+            else:
+                # Резервен селектор, ако JS-а липсва
+                price_elem = soup.select_one('p.product-new-price[data-test="main-price"]')
+                price = price_elem.get_text(separator='', strip=True) if price_elem else "N/A"
+            
+            # Статус
+            if '"code":"in_stock"' in html_text or '"availability":{"id":3' in html_text:
+                status = "В наличност"
+            elif '"code":"out_of_stock"' in html_text:
+                status = "Няма наличност"
+            else:
+                status_elem = soup.select_one(".label-in_stock, .label-out_of_stock, .label-limited_stock")
+                status = status_elem.get_text(strip=True) if status_elem else "Unknown"
+
         else:
+            # За останалите сайтчовци
             response = requests.get(url, headers=headers, timeout=15)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -111,25 +153,6 @@ def get_price_data(url, site_key):
                 status_elem = soup.select_one(".js-product-availability")
                 price = price_elem.get_text(strip=True) if price_elem else "N/A"
                 status = status_elem.get_text(strip=True) if status_elem else "N/A"
-
-            elif site_key == "emag_bg":
-                # Hell yeah, eMAG са скрили цената в JS! Извличаме я директно от там.
-                price_match = re.search(r'EM\.productDiscountedPrice\s*=\s*([\d.]+);', response.text)
-                if price_match:
-                    price = price_match.group(1) + " €" # или лв., зависи какво очакваш
-                else:
-                    # Резервен селектор, ако JS-а липсва, щото са пълен паприкаш
-                    price_elem = soup.select_one('p.product-new-price')
-                    price = price_elem.get_text(separator='', strip=True) if price_elem else "N/A"
-                
-                # Статусът също го има в JSON/JS кода
-                if '"code":"in_stock"' in response.text or '"availability":{"id":3' in response.text:
-                    status = "В наличност"
-                elif '"code":"out_of_stock"' in response.text:
-                    status = "Няма наличност"
-                else:
-                    status_elem = soup.select_one(".label-in_stock, .label-out_of_stock, .label-limited_stock")
-                    status = status_elem.get_text(strip=True) if status_elem else "Unknown"
 
         return {"price": price, "status": status}
     except Exception as e:
