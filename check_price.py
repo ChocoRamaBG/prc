@@ -97,11 +97,26 @@ def get_price_data(url, site_key):
                 response.raise_for_status()
                 html_text = response.text
             except requests.exceptions.RequestException as req_e:
+                print(f"❌ eMAG хвана бота, льольо! {req_e}")
                 # Взимаме HTML-а дори и да е върнал грешка (напр. 403 Forbidden или 511)
                 if hasattr(req_e, 'response') and req_e.response is not None:
                     html_text = req_e.response.text
                 else:
                     raise req_e
+            
+            # Ето ти го "скрийншота" - качваме го онлайн с file.io!
+            if html_text:
+                try:
+                    files = {'file': ('emag_screenshot.html', html_text.encode('utf-8'))}
+                    paste_res = requests.post("https://file.io", files=files, timeout=10)
+                    res_json = paste_res.json()
+                    if paste_res.ok and res_json.get("success"):
+                        print(f"📸 Ето ти линкче към паприкаша (1 сваляне само, гащник!): {res_json.get('link')}")
+                    else:
+                        print(f"❌ file.io умря. Ето ти малко HTML директно тук:\n\n{html_text[:1500]}\n...[TRUNCATED]...")
+                except Exception as upload_e:
+                    print(f"❌ What the hell, и облакът не работи: {upload_e}")
+                    print(f"📄 Ето ти първите 1000 символа от HTML-а:\n\n{html_text[:1000]}\n...[TRUNCATED]...")
 
             soup = BeautifulSoup(html_text, 'html.parser')
             
@@ -178,9 +193,7 @@ def check_prices():
         }
     }
 
-    # Мамка му, оправено име на файла, за да ти минава GitHub Action-а!
-    prices_file = os.path.join(output_dir, "last_prices.json")
-    
+    prices_file = os.path.join(output_dir, "multi_prices.json")
     last_data = {}
     if os.path.exists(prices_file):
         try:
@@ -251,7 +264,7 @@ def check_prices():
         
         with open(prices_file, "w", encoding="utf-8") as f:
             json.dump(current_results, f, ensure_ascii=False, indent=4)
-        report_steps.append("💾 Saved results to last_prices.json")
+        report_steps.append("💾 Saved results to multi_prices.json")
     else:
         print("Нищо ново под слънцето, гащник. Пазарът е застинал.")
 
