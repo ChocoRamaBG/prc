@@ -91,22 +91,29 @@ def get_price_data(url, site_key):
         elif site_key == "emag_bg":
             html_text = ""
             try:
-                # Батко чатко мами системата
-                emag_headers = headers.copy()
-                emag_headers["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                response = requests.get(url, headers=emag_headers, timeout=20)
+                # Батко чатко мами системата с cloudscraper, щото обикновените request-човци гърмят!
+                try:
+                    import cloudscraper
+                except ImportError:
+                    print("❌ Андибул морков! Нямаш cloudscraper. Напиши в терминала: pip install cloudscraper")
+                    return {"price": "Error", "status": "Липсва cloudscraper"}
+                
+                # Имитираме браузърчовци
+                scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False})
+                response = scraper.get(url, timeout=20)
                 response.raise_for_status()
                 html_text = response.text
-            except requests.exceptions.RequestException as req_e:
+            except Exception as req_e:
                 if hasattr(req_e, 'response') and req_e.response is not None:
                     html_text = req_e.response.text
                 else:
-                    raise req_e
+                    print(f"❌ Cloudscraper гръмна: {req_e}")
+                    return {"price": "Error", "status": "Cloudscraper error"}
 
             # Проверка дали са ни нацелили с CAPTCHA
             if "captcha" in html_text.lower() or "challenge-platform" in html_text.lower():
                 price = "N/A"
-                status = "Блокиран от CAPTCHA (Cloudflare)"
+                status = "Блокиран от CAPTCHA (Cloudflare/Imperva)"
             else:
                 soup = BeautifulSoup(html_text, 'html.parser')
                 
