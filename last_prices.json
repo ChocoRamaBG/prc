@@ -20,7 +20,7 @@
         "status": "Блокиран от CAPTCHA (Cloudflare/Imperva)"
     },
     "Drones.bg": {
-        "price": "Error",
-        "status": "HTTPSConnectionPool(host='drones.bg', port=443): Max retries exceeded with url: /magazin/dronove-dji/vsichki-dji-dronove/dron-dji-mini-3/ (Caused by NameResolutionError(\"HTTPSConnection(host='drones.bg', port=443): Failed to resolve 'drones.bg' ([Errno -3] Temporary failure in name resolution)\"))"
+        "price": "339,00 €",
+        "status": "В наличност"
     }
 }
