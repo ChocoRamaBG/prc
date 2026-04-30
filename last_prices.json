@@ -4,23 +4,23 @@
         "status": "Buy Now (В наличност)"
     },
     "DJI Store Sofia (Local)": {
-        "price": "N/A",
-        "status": "N/A"
+        "price": "339,00€",
+        "status": "В наличност"
     },
     "AeroCam.bg": {
         "price": "N/A",
         "status": "Предварителна поръчка"
     },
     "Copter.bg": {
-        "price": "N/A",
-        "status": "N/A"
+        "price": "339,00 €",
+        "status": "В наличност"
     },
     "eMAG.bg": {
         "price": "N/A",
         "status": "Блокиран от CAPTCHA (Cloudflare/Imperva)"
     },
     "Drones.bg": {
-        "price": "N/A",
+        "price": "339,00 €",
         "status": "В наличност"
     }
 }
