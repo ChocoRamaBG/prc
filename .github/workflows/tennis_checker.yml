@@ -1,0 +1,38 @@
+name: Eventim Tennis Checker
+
+on:
+  schedule:
+    - cron: '*/15 * * * *' # Изпълнява се на всеки 15 минути
+  workflow_dispatch: # Позволява ръчно стартиране от бутона в GitHub
+
+permissions:
+  contents: write
+
+jobs:
+  check-events:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 cloudscraper
+
+      - name: Run event checker
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+        run: python check_tennis.py
+
+      - name: Commit updated state file
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "bot: update tennis events state [skip ci]"
+          file_pattern: tennis_state.json
