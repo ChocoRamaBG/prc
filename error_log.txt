@@ -1,2 +1,4 @@
 Грешка при заявката:
-HTTPSConnectionPool(host='www.eventim.bg', port=443): Read timed out. (read timeout=20)
+Page.goto: net::ERR_HTTP2_PROTOCOL_ERROR at https://www.eventim.bg/events/%D1%81%D0%BF%D0%BE%D1%80%D1%82-292/%D1%82%D0%B5%D0%BD%D0%B8%D1%81-2879/
+Call log:
+  - navigating to "https://www.eventim.bg/events/%D1%81%D0%BF%D0%BE%D1%80%D1%82-292/%D1%82%D0%B5%D0%BD%D0%B8%D1%81-2879/", waiting until "load"
