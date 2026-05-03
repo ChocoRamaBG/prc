@@ -6,6 +6,8 @@ import re
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from playwright.sync_api import sync_playwright
+from bs4 import BeautifulSoup
 
 # Авто-инсталатор, щото си пълен аджамия и мързелът е skibidi toilet ниво!
 def install_packages():
@@ -17,13 +19,10 @@ def install_packages():
             else:
                 __import__(pkg)
         except ImportError:
-import json
-import re
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from playwright.sync_api import sync_playwright
-from bs4 import BeautifulSoup
+            print(f"⚠️ Мамка му човече, липсва {pkg}! Батко чатко инсталира автоматично...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+
+install_packages()
 
 # Вземай пътя до папката за запис на JSON файлчето, както искаше
 try:
