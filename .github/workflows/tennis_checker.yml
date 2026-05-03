@@ -23,7 +23,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 cloudscraper
+          # Батко чатко ти добави Playwright, щото ревеш за скриншотчовци!
+          pip install requests beautifulsoup4 cloudscraper playwright
+          playwright install chromium
 
       - name: Run event checker
         env:
