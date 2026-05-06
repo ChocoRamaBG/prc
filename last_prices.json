@@ -4,8 +4,8 @@
         "status": "Buy Now (В наличност)"
     },
     "DJI Store Sofia (Local)": {
-        "price": "Error",
-        "status": "HTTPSConnectionPool(host='store.dji.bg', port=443): Read timed out. (read timeout=15)"
+        "price": "339,00€",
+        "status": "В наличност"
     },
     "AeroCam.bg": {
         "price": "N/A",
