@@ -94,15 +94,12 @@ def get_price_data(url, site_key):
             soup = BeautifulSoup(response.text, 'html.parser')
             
             # Търсиме дивчовци с регулярен израз, защото React хешовете се сменят! Hell yeah!
-            price_block = soup.find('div', class_=re.compile(r'block-price'))
+            # Батко чатко набива точния CSS селектор! РАЗБИРААЙ, никакви грешки повече!
+            price_elem = soup.select_one('div[class^="styles__prices___"] span[class^="styles__price___"]')
             
-            if price_block:
-                # Вземай първия span, льольо! Първият ВИНАГИ е актуалната цена (намалена или не).
-                # РАЗБИРААЙ, това е желязна логика.
-                span_elems = price_block.find_all('span', class_=re.compile(r'price'))
-                if span_elems:
-                    price = span_elems[0].get_text(strip=True)
-                    status = "В наличност (Хваната от HTML-а, палавник!)"
+            if price_elem:
+                price = price_elem.get_text(strip=True)
+                status = "В наличност (Хваната от HTML-а, палавник!)"
             
             # What the fuck, ако пак сменят дизайна, ползваме JSON-а като бекъп:
             if price == "Unknown":
