@@ -93,13 +93,16 @@ def get_price_data(url, site_key):
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Търсиме дивчовци с регулярен израз, защото React хешовете се сменят! Hell yeah!
-            # Батко чатко набива точния CSS селектор! РАЗБИРААЙ, никакви грешки повече!
-            price_elem = soup.select_one('div[class^="styles__prices___"] span[class^="styles__price___"]')
+            # РАЗБИРААЙ! Хващаме се за тестовия локатор, който QA екипчовците им са сложили! 
+            # Никакви XPath-ове, никакви глупости!
+            add_to_cart_bar = soup.find(attrs={"data-test-locator": "sectionAddToCartBar"})
             
-            if price_elem:
-                price = price_elem.get_text(strip=True)
-                status = "В наличност (Хваната от HTML-а, палавник!)"
+            if add_to_cart_bar:
+                # Вземай спанчовците, които крият намалената цена и избягваме оригиналната!
+                price_elem = add_to_cart_bar.select_one('span[class^="styles__price___"]:not([class*="original"])')
+                if price_elem:
+                    price = price_elem.get_text(strip=True)
+                    status = "В наличност (Хваната от AddToCart бара, палавник!)"
             
             # What the fuck, ако пак сменят дизайна, ползваме JSON-а като бекъп:
             if price == "Unknown":
