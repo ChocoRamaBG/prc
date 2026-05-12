@@ -93,16 +93,22 @@ def get_price_data(url, site_key):
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # РАЗБИРААЙ! Хващаме се за тестовия локатор, който QA екипчовците им са сложили! 
-            # Никакви XPath-ове, никакви глупости!
-            add_to_cart_bar = soup.find(attrs={"data-test-locator": "sectionAddToCartBar"})
+            # РАЗБИРААЙ! Удряме го с големия чук! 
+            # 1. Търсиме директно спанчовци с клас, съдържащ 'discount-price'
+            discount_span = soup.find('span', class_=re.compile(r'discount-price'))
             
-            if add_to_cart_bar:
-                # Вземай спанчовците, които крият намалената цена и избягваме оригиналната!
-                price_elem = add_to_cart_bar.select_one('span[class^="styles__price___"]:not([class*="original"])')
-                if price_elem:
-                    price = price_elem.get_text(strip=True)
-                    status = "В наличност (Хваната от AddToCart бара, палавник!)"
+            if discount_span:
+                price = discount_span.get_text(strip=True)
+                status = "В наличност (Хваната от discount-price, льольо!)"
+            else:
+                # 2. Търсиме всички спанчовци с 'styles__price' и махаме тия с 'original'
+                price_spans = soup.find_all('span', class_=re.compile(r'^styles__price___'))
+                for span in price_spans:
+                    classes = " ".join(span.get('class', [])).lower()
+                    if 'original' not in classes:
+                        price = span.get_text(strip=True)
+                        status = "В наличност (Хваната от styles__price, палавник!)"
+                        break
             
             # What the fuck, ако пак сменят дизайна, ползваме JSON-а като бекъп:
             if price == "Unknown":
