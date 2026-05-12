@@ -93,22 +93,18 @@ def get_price_data(url, site_key):
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # РАЗБИРААЙ! Удряме го с големия чук! 
-            # 1. Търсиме директно спанчовци с клас, съдържащ 'discount-price'
-            discount_span = soup.find('span', class_=re.compile(r'discount-price'))
+            # РАЗБИРААЙ! Щом си такъв карък, хващаме секцията и блъскаме с regex по целия текст!
+            add_to_cart_bar = soup.find(attrs={"data-test-locator": "sectionAddToCartBar"})
             
-            if discount_span:
-                price = discount_span.get_text(strip=True)
-                status = "В наличност (Хваната от discount-price, льольо!)"
-            else:
-                # 2. Търсиме всички спанчовци с 'styles__price' и махаме тия с 'original'
-                price_spans = soup.find_all('span', class_=re.compile(r'^styles__price___'))
-                for span in price_spans:
-                    classes = " ".join(span.get('class', [])).lower()
-                    if 'original' not in classes:
-                        price = span.get_text(strip=True)
-                        status = "В наличност (Хваната от styles__price, палавник!)"
-                        break
+            if add_to_cart_bar:
+                # Вземай целия текст, разделен с интервалчовци
+                raw_text = add_to_cart_bar.get_text(separator=' ')
+                # Батко чатко вади първото число с евентуално евро отзад. 
+                # Ти го плюеш, то си мисли че роса роси, мамка му човече!
+                match = re.search(r'(\d+[\d.,]*)\s*€?', raw_text)
+                if match:
+                    price = match.group(1).strip() + " €"
+                    status = "В наличност (Първият номер е твой, палавник!)"
             
             # What the fuck, ако пак сменят дизайна, ползваме JSON-а като бекъп:
             if price == "Unknown":
