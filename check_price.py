@@ -90,22 +90,33 @@ def get_price_data(url, site_key):
             response = requests.get(url, headers=headers, cookies=forced_cookies, timeout=15)
             response.raise_for_status()
             
-            match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*?});', response.text, re.DOTALL)
-            if match:
-                state_json = json.loads(match.group(1))
-                target_vid = "141921" 
-                variants = state_json.get('products', {}).get('variants', [])
-                for v in variants:
-                    if str(v.get('id')) == target_vid:
-                        price = v.get('priceLabel') or f"{v.get('priceCents', 0) / 100} €"
-                        st_text = v.get('status', {}).get('text', 'Unknown Status')
-                        is_in_stock = v.get('in_stock', False) or v.get('status', {}).get('is_in_stock', False)
-                        if st_text in ["Buy Now", "Add to Cart"]:
-                            is_in_stock = True
-                        status = f"{st_text} ({'В наличност' if is_in_stock else 'Няма наличност'})"
-                        break
+            # Батко чатко влиза с бутонките директно в HTML-а!
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Търсиме точния спан за актуалната цена, гащник!
+            # Използваме CSS селектор, който хваща класове започващи с styles__price, 
+            # но изключваме тези, които съдържат "original", за да не вземем старата цена.
+            price_elem = soup.select_one('span[class^="styles__price___"]:not([class*="original"])')
+            
+            if price_elem:
+                price = price_elem.get_text(strip=True)
+                status = "В наличност (Промоция, льольо!)"
             else:
-                price, status = "JSON Error", "Structure Changed"
+                # Ако DJI пак сменят дизайна и всичко стане паприкаш, връщаме се към JSON-а като бек-ъп
+                match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*?});', response.text, re.DOTALL)
+                if match:
+                    state_json = json.loads(match.group(1))
+                    target_vid = "141921" 
+                    variants = state_json.get('products', {}).get('variants', [])
+                    for v in variants:
+                        if str(v.get('id')) == target_vid:
+                            price = v.get('priceLabel') or f"{v.get('priceCents', 0) / 100} €"
+                            st_text = v.get('status', {}).get('text', 'Unknown Status')
+                            is_in_stock = v.get('in_stock', False) or v.get('status', {}).get('is_in_stock', False)
+                            status = f"{st_text} ({'В наличност' if is_in_stock else 'Няма наличност'})"
+                            break
+                else:
+                    price, status = "JSON Error", "Structure Changed"
 
         elif site_key == "emag_bg":
             html_text = ""
