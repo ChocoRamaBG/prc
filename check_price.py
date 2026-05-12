@@ -26,7 +26,8 @@ import cloudscraper
 from email.mime.text import MIMEText
 from bs4 import BeautifulSoup
 
-# Пътят към папката, че да не ги търсиш като изгубени чорапчовци
+# Пътят към папката, че да не ги търсиш като изгубени чорапчовци. 
+# Записва гоуеми файлчовци точно където е скриптчето!
 try:
     output_dir = os.path.dirname(os.path.abspath(__file__))
 except NameError:
@@ -90,19 +91,21 @@ def get_price_data(url, site_key):
             response = requests.get(url, headers=headers, cookies=forced_cookies, timeout=15)
             response.raise_for_status()
             
-            # Батко чатко влиза с бутонките директно в HTML-а!
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Търсиме точния спан за актуалната цена, гащник!
-            # Използваме CSS селектор, който хваща класове започващи с styles__price, 
-            # но изключваме тези, които съдържат "original", за да не вземем старата цена.
-            price_elem = soup.select_one('span[class^="styles__price___"]:not([class*="original"])')
+            # Търсиме дивчовци с регулярен израз, защото React хешовете се сменят! Hell yeah!
+            price_block = soup.find('div', class_=re.compile(r'block-price'))
             
-            if price_elem:
-                price = price_elem.get_text(strip=True)
-                status = "В наличност (Промоция, льольо!)"
-            else:
-                # Ако DJI пак сменят дизайна и всичко стане паприкаш, връщаме се към JSON-а като бек-ъп
+            if price_block:
+                # Вземай първия span, льольо! Първият ВИНАГИ е актуалната цена (намалена или не).
+                # РАЗБИРААЙ, това е желязна логика.
+                span_elems = price_block.find_all('span', class_=re.compile(r'price'))
+                if span_elems:
+                    price = span_elems[0].get_text(strip=True)
+                    status = "В наличност (Хваната от HTML-а, палавник!)"
+            
+            # What the fuck, ако пак сменят дизайна, ползваме JSON-а като бекъп:
+            if price == "Unknown":
                 match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*?});', response.text, re.DOTALL)
                 if match:
                     state_json = json.loads(match.group(1))
@@ -113,6 +116,8 @@ def get_price_data(url, site_key):
                             price = v.get('priceLabel') or f"{v.get('priceCents', 0) / 100} €"
                             st_text = v.get('status', {}).get('text', 'Unknown Status')
                             is_in_stock = v.get('in_stock', False) or v.get('status', {}).get('is_in_stock', False)
+                            if st_text in ["Buy Now", "Add to Cart"]:
+                                is_in_stock = True
                             status = f"{st_text} ({'В наличност' if is_in_stock else 'Няма наличност'})"
                             break
                 else:
@@ -121,7 +126,6 @@ def get_price_data(url, site_key):
         elif site_key == "emag_bg":
             html_text = ""
             try:
-                # Вече сме сигурни, че cloudscraper е инсталиран от авто-функцията горе
                 scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False})
                 response = scraper.get(url, timeout=20)
                 response.raise_for_status()
@@ -133,14 +137,11 @@ def get_price_data(url, site_key):
                     print(f"❌ Cloudscraper гръмна: {req_e}")
                     return {"price": "Error", "status": "Cloudscraper error"}
 
-            # Проверка дали са ни нацелили с CAPTCHA
             if "captcha" in html_text.lower() or "challenge-platform" in html_text.lower():
                 price = "N/A"
                 status = "Блокиран от CAPTCHA (Cloudflare/Imperva)"
             else:
                 soup = BeautifulSoup(html_text, 'html.parser')
-                
-                # По-широк селектор, за да не гърми
                 price_elem = soup.select_one('p.product-new-price')
                 if price_elem:
                     price = price_elem.get_text(separator='', strip=True)
@@ -319,7 +320,6 @@ def check_prices():
                     <div style="display: block;">
         """
         
-        # Добавяме редовете за конкурентите динамично
         for i, (name, res) in enumerate(current_results.items()):
             if name == source_name: continue
             bg_color = "#ffffff" if i % 2 == 0 else "#f1f2f6"
