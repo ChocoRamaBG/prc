@@ -1,0 +1,39 @@
+name: Daily P2P Monitor
+
+on:
+  schedule:
+    # Runs at 07:00 UTC every day.
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      run_test_email:
+        description: 'Send a test email to verify credentials?'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  monitor_job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Execute Monitor Script
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+        run: |
+          if [ "${{ github.event.inputs.run_test_email }}" == "true" ]; then
+            echo "Running test email command..."
+            python check_quanloop.py --test
+          else
+            echo "Running normal scheduled check..."
+            python check_quanloop.py
+          fi
