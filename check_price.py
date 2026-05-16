@@ -57,16 +57,26 @@ def send_email(subject, body_text):
         print(f"❌ Failed to send email: {e}")
 
 def clean_price(price_str):
-    """Превръща тия криви стрингове в чисти числа за смятане, льольо!"""
+    """Превръща тия криви стрингове в чисти числа за смятане, льольо!
+       АВТОМАТИЧНО конвертира ЛЕВА в ЕВРО, ако намери 'лв' или 'bgn' в стринга!"""
     if not price_str or "Error" in price_str or "N/A" in price_str:
         return 0.0
+    
+    # Проверка дали стринга съдържа левове
+    is_bgn = "лв" in str(price_str).lower() or "bgn" in str(price_str).lower()
+    
     cleaned = re.sub(r'[^\d.,]', '', str(price_str))
     if ',' in cleaned and '.' in cleaned:
         cleaned = cleaned.replace(',', '')
     elif ',' in cleaned:
         cleaned = cleaned.replace(',', '.')
+        
     try:
-        return float(cleaned)
+        val = float(cleaned)
+        # Ако цената е била в левове, делим на 1.95583, за да стане в Евро за сметките
+        if is_bgn:
+            val = round(val / 1.95583, 2)
+        return val
     except:
         return 0.0
 
@@ -91,25 +101,10 @@ def get_price_data(url, site_key):
             response = requests.get(url, headers=headers, cookies=forced_cookies, timeout=15)
             response.raise_for_status()
             
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # РАЗБИРААЙ! Щом си такъв карък, хващаме секцията и блъскаме с regex по целия текст!
-            add_to_cart_bar = soup.find(attrs={"data-test-locator": "sectionAddToCartBar"})
-            
-            if add_to_cart_bar:
-                # Вземай целия текст, разделен с интервалчовци
-                raw_text = add_to_cart_bar.get_text(separator=' ')
-                # Батко чатко вади първото число с евентуално евро отзад. 
-                # Ти го плюеш, то си мисли че роса роси, мамка му човече!
-                match = re.search(r'(\d+[\d.,]*)\s*€?', raw_text)
-                if match:
-                    price = match.group(1).strip() + " €"
-                    status = "В наличност (Първият номер е твой, палавник!)"
-            
-            # What the fuck, ако пак сменят дизайна, ползваме JSON-а като бекъп:
-            if price == "Unknown":
-                match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*?});', response.text, re.DOTALL)
-                if match:
+            # РАЗБИРААЙ! Вадим директно от сървърния JSON, защото HTML-ът е нестабилен!
+            match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*(\{.+?\});\s*(?:</script>|window\.__ENABLE_HYDRATE__)', response.text, re.DOTALL)
+            if match:
+                try:
                     state_json = json.loads(match.group(1))
                     target_vid = "141921" 
                     variants = state_json.get('products', {}).get('variants', [])
@@ -117,13 +112,13 @@ def get_price_data(url, site_key):
                         if str(v.get('id')) == target_vid:
                             price = v.get('priceLabel') or f"{v.get('priceCents', 0) / 100} €"
                             st_text = v.get('status', {}).get('text', 'Unknown Status')
-                            is_in_stock = v.get('in_stock', False) or v.get('status', {}).get('is_in_stock', False)
-                            if st_text in ["Buy Now", "Add to Cart"]:
-                                is_in_stock = True
+                            is_in_stock = v.get('stock', 0) > 0 or v.get('status', {}).get('code') == 'on_sale'
                             status = f"{st_text} ({'В наличност' if is_in_stock else 'Няма наличност'})"
                             break
-                else:
-                    price, status = "JSON Error", "Structure Changed"
+                except Exception as e:
+                    price, status = "JSON Error", f"Parse failed: {e}"
+            else:
+                price, status = "Regex Error", "Could not find __PRELOADED_STATE__"
 
         elif site_key == "emag_bg":
             html_text = ""
@@ -144,14 +139,20 @@ def get_price_data(url, site_key):
                 status = "Блокиран от CAPTCHA (Cloudflare/Imperva)"
             else:
                 soup = BeautifulSoup(html_text, 'html.parser')
-                price_elem = soup.select_one('p.product-new-price')
-                if price_elem:
-                    price = price_elem.get_text(separator='', strip=True)
-                else:
-                    price_match = re.search(r'EM\.productDiscountedPrice\s*=\s*([\d.]+)', html_text)
-                    price = price_match.group(1) + " €" if price_match else "N/A"
                 
-                if '"code":"in_stock"' in html_text or '"availability":{"id":3' in html_text:
+                # Търсим директно в мета таговете (най-сигурно за eMAG)
+                meta_price = soup.find('meta', attrs={'itemprop': 'price'})
+                if meta_price and meta_price.get('content'):
+                    price = meta_price['content'] + " лв."
+                else:
+                    price_elem = soup.select_one('p.product-new-price')
+                    if price_elem:
+                        price = price_elem.get_text(separator=' ', strip=True)
+                    else:
+                        price_match = re.search(r'"price":\s*([\d.]+)', html_text)
+                        price = price_match.group(1) + " лв." if price_match else "N/A"
+                
+                if '"code":"in_stock"' in html_text or '"availability":{"id":3' in html_text or 'в наличност' in html_text.lower():
                     status = "В наличност"
                 elif '"code":"out_of_stock"' in html_text:
                     status = "Няма наличност"
@@ -167,19 +168,27 @@ def get_price_data(url, site_key):
             if site_key == "store_dji_bg":
                 price_elem = soup.find(id="our_price_display")
                 status_elem = soup.find(id="availability_value")
-                price = price_elem.get_text(strip=True) if price_elem else "N/A"
+                # Добавяме 'лв.', за да се усети конверторът в clean_price
+                price = price_elem.get_text(strip=True) + " лв." if price_elem else "N/A"
                 status = status_elem.get_text(strip=True) if status_elem else "N/A"
 
             elif site_key == "aerocam_bg":
-                price_elem = soup.select_one(".live-price-new")
-                status_match = re.search(r'Наличност:</b>\s*([^<]+)', response.text)
-                price = price_elem.get_text(strip=True) if price_elem else "N/A"
-                status = status_match.group(1).strip() if status_match else "N/A"
+                # Новият им дизайн ползва .live-price
+                price_elem = soup.select_one(".live-price")
+                if price_elem:
+                    raw_p = price_elem.get_text(separator=' ', strip=True)
+                    m = re.search(r'([\d.,]+)\s*€', raw_p)
+                    price = m.group(1) + " €" if m else raw_p
+                else:
+                    price = "N/A"
+
+                status_p = soup.find(lambda tag: tag.name == "p" and "Наличност:" in tag.get_text())
+                status = status_p.get_text(strip=True).replace("Наличност:", "").strip() if status_p else "N/A"
 
             elif site_key == "copter_bg":
                 price_elem = soup.select_one(".current-price-value")
                 status_elem = soup.select_one(".js-product-availability")
-                price = price_elem.get_text(strip=True) if price_elem else "N/A"
+                price = price_elem.get_text(strip=True) + " лв." if price_elem else "N/A"
                 status = status_elem.get_text(strip=True) if status_elem else "N/A"
 
             elif site_key == "drones_bg":
@@ -361,3 +370,6 @@ def check_prices():
 
 if __name__ == "__main__":
     check_prices()
+```eof
+
+Ако някой от сайтовете пак реши да смени дизайна, пиши - ще го разбием отново!
