@@ -25,6 +25,7 @@ import cloudscraper
 from email.mime.text import MIMEText
 from bs4 import BeautifulSoup
 
+# Оправяме пътя към изходната папка
 try:
     output_dir = os.path.dirname(os.path.abspath(__file__))
 except NameError:
@@ -88,17 +89,34 @@ def get_price_data(url, site_key):
         if site_key == "dji_global_refurbished":
             forced_cookies = {"currency": "EUR", "country": "bg", "region": "BG"}
             response = requests.get(url, headers=headers, cookies=forced_cookies, timeout=15)
-            soup = BeautifulSoup(response.text, 'html.parser')
+            html = response.text
             
-            # РАЗБИРААЙ! Търсим визуалната цена в Add to Cart лентата
-            price_box = soup.select_one('section[data-test-locator="sectionAddToCartBar"] span[class*="price"]')
-            if price_box:
-                price = price_box.get_text(strip=True)
-                status = "В наличност (Визуално потвърдено)"
+            # ЗАПИСВАМЕ ДЕБЪГ ФАЙЛ - Можеш да го свалиш от GitHub Artifacts!
+            debug_path = os.path.join(output_dir, "dji_debug.html")
+            with open(debug_path, "w", encoding="utf-8") as f:
+                f.write(html)
+            print(f"💾 DEBUG: Saved DJI HTML to {debug_path}")
+
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            # Търсене на цената на 3 нива на сигурност:
+            # 1. Add To Cart Bar (най-вероятно за 275)
+            price_elem = soup.select_one('section[data-test-locator="sectionAddToCartBar"] .styles__price___xAdOB')
+            if not price_elem:
+                price_elem = soup.select_one('span[class*="price___xAdOB"]')
+            
+            if price_elem:
+                price = price_elem.get_text(strip=True)
+                status = "В наличност (Визуално от HTML)"
             else:
-                # Ако няма такава лента, значи вероятно няма наличност или дизайна е сменен тотално
-                price = "N/A"
-                status = "Няма наличност (Лентата за купуване липсва)"
+                # 2. Ако HTML селекторите се провалят, ровим с Regex за 275 или 219
+                match = re.search(r'(\d{2,3})\s*€', html)
+                if match:
+                    price = match.group(1) + " €"
+                    status = "В наличност (Хванато с Regex)"
+                else:
+                    price = "N/A"
+                    status = "Няма наличност (Лентата за купуване липсва)"
 
         elif site_key == "emag_bg":
             scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False})
@@ -106,8 +124,7 @@ def get_price_data(url, site_key):
             html = response.text
             soup = BeautifulSoup(html, 'html.parser')
             
-            # Търсим в мета таговете или в JavaScript обекта на eMAG
-            meta_p = soup.find('meta', property='product:price:amount') or soup.find('meta', attrs={'itemprop': 'price'})
+            meta_p = soup.find('meta', attrs={'itemprop': 'price'}) or soup.find('meta', property='product:price:amount')
             if meta_p:
                 price = meta_p.get('content') + " лв."
             else:
@@ -116,41 +133,36 @@ def get_price_data(url, site_key):
             
             status = "В наличност" if "in_stock" in html or "id\":3" in html else "Няма наличност"
 
-        elif site_key == "store_dji_bg":
+        else:
             response = requests.get(url, headers=headers, timeout=15)
             soup = BeautifulSoup(response.text, 'html.parser')
-            price_elem = soup.find(id="our_price_display")
-            status_elem = soup.find(id="availability_value")
-            price = price_elem.get_text(strip=True) if price_elem else "N/A"
-            status = status_elem.get_text(strip=True) if status_elem else "N/A"
 
-        elif site_key == "aerocam_bg":
-            response = requests.get(url, headers=headers, timeout=15)
-            soup = BeautifulSoup(response.text, 'html.parser')
-            price_elem = soup.select_one(".live-price")
-            if price_elem:
-                txt = price_elem.get_text(separator=' ', strip=True)
-                # Опитваме се да извадим само евро сумата
-                match = re.search(r'([\d.,]+)\s*€', txt)
-                price = match.group(1) + " €" if match else txt
-            status_p = soup.find(lambda tag: tag.name == "p" and "Наличност:" in tag.get_text())
-            status = status_p.get_text(strip=True).replace("Наличност:", "").strip() if status_p else "N/A"
+            if site_key == "store_dji_bg":
+                price_elem = soup.find(id="our_price_display")
+                status_elem = soup.find(id="availability_value")
+                price = price_elem.get_text(strip=True) if price_elem else "N/A"
+                status = status_elem.get_text(strip=True) if status_elem else "N/A"
 
-        elif site_key == "copter_bg":
-            response = requests.get(url, headers=headers, timeout=15)
-            soup = BeautifulSoup(response.text, 'html.parser')
-            price_elem = soup.select_one(".current-price-value")
-            status_elem = soup.select_one(".js-product-availability")
-            price = price_elem.get_text(strip=True) if price_elem else "N/A"
-            status = status_elem.get_text(strip=True) if status_elem else "N/A"
+            elif site_key == "aerocam_bg":
+                price_elem = soup.select_one(".live-price")
+                if price_elem:
+                    txt = price_elem.get_text(separator=' ', strip=True)
+                    match = re.search(r'([\d.,]+)\s*€', txt)
+                    price = match.group(1) + " €" if match else txt
+                status_p = soup.find(lambda tag: tag.name == "p" and "Наличност:" in tag.get_text())
+                status = status_p.get_text(strip=True).replace("Наличност:", "").strip() if status_p else "N/A"
 
-        elif site_key == "drones_bg":
-            response = requests.get(url, headers=headers, timeout=15)
-            soup = BeautifulSoup(response.text, 'html.parser')
-            price_elem = soup.select_one('p.price span.woocommerce-Price-amount bdi')
-            price = price_elem.get_text(separator=' ', strip=True) if price_elem else "N/A"
-            status_elem = soup.select_one('.stock')
-            status = status_elem.get_text(strip=True) if status_elem else "В наличност"
+            elif site_key == "copter_bg":
+                price_elem = soup.select_one(".current-price-value")
+                status_elem = soup.select_one(".js-product-availability")
+                price = price_elem.get_text(strip=True) if price_elem else "N/A"
+                status = status_elem.get_text(strip=True) if status_elem else "N/A"
+
+            elif site_key == "drones_bg":
+                price_elem = soup.select_one('p.price span.woocommerce-Price-amount bdi')
+                price = price_elem.get_text(separator=' ', strip=True) if price_elem else "N/A"
+                status_elem = soup.select_one('.stock')
+                status = status_elem.get_text(strip=True) if status_elem else "В наличност"
 
         return {"price": price, "status": status}
     except Exception as e:
@@ -191,27 +203,39 @@ def check_prices():
         min_comp = min(comp_prices) if comp_prices else 0.0
         profit = min_comp - source_price_val if min_comp > 0 else 0.0
         roi = (profit / source_price_val * 100) if source_price_val > 0 else 0.0
+        profit_margin = (profit / min_comp * 100) if min_comp > 0 else 0.0
+        min_sell_15_roi = source_price_val * 1.15
 
         email_body = f"""
         <html><body style="font-family: sans-serif; background: #f4f7f6; padding: 20px;">
             <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
                 <div style="background: #ff4757; padding: 15px; text-align: center; color: white;">
-                    <h2>Актуален ценови доклад</h2>
+                    <h2>Йо шефе! Актуален ценови доклад</h2>
                     <p>{product_full_name}</p>
                 </div>
                 <div style="padding: 20px;">
-                    <p style="font-size: 20px;">💰 Цена от DJI GLOBAL: <strong>{current_results['DJI GLOBAL (SOURCE)']['price']}</strong></p>
-                    <p>📊 Потенциална печалба спрямо БГ пазара: <span style="color: #2ed573; font-weight: bold;">{profit:.2f} €</span> (ROI: {roi:.1f}%)</p>
+                    <p style="font-size: 20px; color: #ff4757;">💰 Цена от DJI GLOBAL: <strong>{current_results['DJI GLOBAL (SOURCE)']['price']}</strong></p>
+                    <div style="background: #f1f2f6; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                        <h4 style="margin-top:0">🚀 БИЗНЕС АНАЛИЗ:</h4>
+                        <p>💸 Най-ниска цена в БГ: <strong>{min_comp:.2f} €</strong></p>
+                        <p>💰 Потенциална печалба: <span style="color: #2ed573; font-weight: bold;">{profit:.2f} €</span></p>
+                        <p>📈 Възвръщаемост (ROI): <span style="color: {'#2ed573' if roi >= 15 else '#ff4757'}; font-weight: bold;">{roi:.1f}%</span></p>
+                        <p>📉 Марж на печалбата: <strong>{profit_margin:.1f}%</strong></p>
+                        <p>🎯 Цена за минимум 15% ROI: <strong style="color: #1e90ff;">{min_sell_15_roi:.2f} €</strong></p>
+                    </div>
                     <hr/>
                     <h4>Детайли по магазини:</h4>
-                    {"".join([f"<p><b>{n}</b>: {r['price']} ({r['status']})</p>" for n, r in current_results.items()])}
+                    {"".join([f"<p style='margin:5px 0'><b>{n}</b>: <span style='color:#ff4757'>{r['price']}</span> ({r['status']})</p>" for n, r in current_results.items()])}
+                </div>
+                <div style="background: #ffa502; padding: 10px; text-align: center; color: white; font-weight: bold;">
+                    Бягай да действаш, andibul carrot! 🥕
                 </div>
             </div>
         </body></html>"""
 
-        send_email(f"🚨 Цена за DJI Mini 3: {current_results['DJI GLOBAL (SOURCE)']['price']}", email_body)
+        send_email(f"🚨 DJI Mini 3: {current_results['DJI GLOBAL (SOURCE)']['price']} (ROI: {roi:.1f}%)", email_body)
         with open(prices_file, "w", encoding="utf-8") as f: json.dump(current_results, f, ensure_ascii=False, indent=4)
-        print("✅ Промените са отчетени и имейлът е пратен!")
+        print("✅ Промените са отчетени и мейлът е пратен!")
     else:
         print("😴 Няма промяна в цените.")
 
