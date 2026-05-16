@@ -100,8 +100,16 @@ def get_price_data(url, site_key):
             forced_cookies = {"currency": "EUR", "country": "bg", "region": "BG"}
             response = requests.get(url, headers=headers, cookies=forced_cookies, timeout=15)
             response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
             
-            # РАЗБИРААЙ! Вадим директно от сървърния JSON, защото HTML-ът е нестабилен!
+            # ОПРАВЕНО: Взимаме цената директно от HTML-а, за да избегнем стари промоции (219€) в JSON-а!
+            price_elem = soup.select_one('.styles__price___xAdOB, .style__price___D132C')
+            if price_elem:
+                price = price_elem.get_text(strip=True)
+                if '€' not in price: price += " €"
+                status = "В наличност" # Ще се презапише от JSON, ако го има
+            
+            # Вадим директно от сървърния JSON за статуса
             match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*(\{.+?\});\s*(?:</script>|window\.__ENABLE_HYDRATE__)', response.text, re.DOTALL)
             if match:
                 try:
@@ -110,14 +118,15 @@ def get_price_data(url, site_key):
                     variants = state_json.get('products', {}).get('variants', [])
                     for v in variants:
                         if str(v.get('id')) == target_vid:
-                            price = v.get('priceLabel') or f"{v.get('priceCents', 0) / 100} €"
+                            if price == "Unknown":
+                                price = v.get('originalPriceLabel') or v.get('priceLabel') or f"{v.get('priceCents', 0) / 100} €"
                             st_text = v.get('status', {}).get('text', 'Unknown Status')
                             is_in_stock = v.get('stock', 0) > 0 or v.get('status', {}).get('code') == 'on_sale'
                             status = f"{st_text} ({'В наличност' if is_in_stock else 'Няма наличност'})"
                             break
                 except Exception as e:
-                    price, status = "JSON Error", f"Parse failed: {e}"
-            else:
+                    if price == "Unknown": price, status = "JSON Error", f"Parse failed: {e}"
+            elif price == "Unknown":
                 price, status = "Regex Error", "Could not find __PRELOADED_STATE__"
 
         elif site_key == "emag_bg":
@@ -134,6 +143,7 @@ def get_price_data(url, site_key):
                     print(f"❌ Cloudscraper гръмна: {req_e}")
                     return {"price": "Error", "status": "Cloudscraper error"}
 
+            # ОПРАВЕНО: За eMAG търсим по-упорито, защото Cloudflare ги пази здраво!
             if "captcha" in html_text.lower() or "challenge-platform" in html_text.lower():
                 price = "N/A"
                 status = "Блокиран от CAPTCHA (Cloudflare/Imperva)"
@@ -149,7 +159,9 @@ def get_price_data(url, site_key):
                     if price_elem:
                         price = price_elem.get_text(separator=' ', strip=True)
                     else:
-                        price_match = re.search(r'"price":\s*([\d.]+)', html_text)
+                        price_match = re.search(r'EM\.productDiscountedPrice\s*=\s*([\d.]+)', html_text)
+                        if not price_match:
+                            price_match = re.search(r'"price":\s*([\d.]+)', html_text)
                         price = price_match.group(1) + " лв." if price_match else "N/A"
                 
                 if '"code":"in_stock"' in html_text or '"availability":{"id":3' in html_text or 'в наличност' in html_text.lower():
@@ -173,7 +185,7 @@ def get_price_data(url, site_key):
                 status = status_elem.get_text(strip=True) if status_elem else "N/A"
 
             elif site_key == "aerocam_bg":
-                # Новият им дизайн ползва .live-price
+                # ОПРАВЕНО: Новият им дизайн ползва .live-price и Наличност:
                 price_elem = soup.select_one(".live-price")
                 if price_elem:
                     raw_p = price_elem.get_text(separator=' ', strip=True)
