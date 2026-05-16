@@ -1,7 +1,7 @@
 {
     "DJI GLOBAL (SOURCE)": {
         "price": "219 €",
-        "status": "В наличност (Визуално потвърдено)"
+        "status": "В наличност (Визуално от HTML)"
     },
     "DJI Store Sofia (Local)": {
         "price": "339,00€",
@@ -20,7 +20,7 @@
         "status": "Няма наличност"
     },
     "Drones.bg": {
-        "price": "339,00 €",
+        "price": "N/A",
         "status": "В наличност"
     }
 }
