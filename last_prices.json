@@ -4,16 +4,16 @@
         "status": "В наличност (Визуално от HTML)"
     },
     "DJI Store Sofia (Local)": {
-        "price": "Error",
-        "status": "HTTPSConnectionPool(host='store.dji.bg', port=443): Max retries exceeded with url: /bg/dron-dji-mini-3.html (Caused by ConnectTimeoutError(<HTTPSConnection(host='store.dji.bg', port=443) at 0x7f2a1a21b250>, 'Connection to store.dji.bg timed out. (connect timeout=15)'))"
+        "price": "339,00€",
+        "status": "Очаква се"
     },
     "AeroCam.bg": {
         "price": "419.25 €",
         "status": "Предварителна поръчка"
     },
     "Copter.bg": {
-        "price": "Error",
-        "status": "HTTPSConnectionPool(host='www.copter.bg', port=443): Max retries exceeded with url: /bg/dron-dji-mini-3.html (Caused by ConnectTimeoutError(<HTTPSConnection(host='www.copter.bg', port=443) at 0x7f2a1a218dc0>, 'Connection to www.copter.bg timed out. (connect timeout=15)'))"
+        "price": "339,00 €",
+        "status": "Очаква се"
     },
     "eMAG.bg": {
         "price": "N/A",
