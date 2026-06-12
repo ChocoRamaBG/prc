@@ -8,8 +8,8 @@
         "status": "Продуктът не е наличен"
     },
     "AeroCam.bg": {
-        "price": "Error",
-        "status": "HTTPSConnectionPool(host='aerocam.bg', port=443): Max retries exceeded with url: /DJI-dronove/dji-mini-drones/dronove-Dji-mini-3/dron-dji-mini-3 (Caused by NewConnectionError(\"HTTPSConnection(host='aerocam.bg', port=443): Failed to establish a new connection: [Errno 111] Connection refused\"))"
+        "price": "Unknown",
+        "status": "В наличност"
     },
     "Copter.bg": {
         "price": "339,00 €",
@@ -17,7 +17,7 @@
     },
     "eMAG.bg": {
         "price": "N/A",
-        "status": "Няма наличност"
+        "status": "В наличност"
     },
     "Drones.bg": {
         "price": "N/A",
