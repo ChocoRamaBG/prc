@@ -4,16 +4,16 @@
         "status": "В наличност (Визуално от HTML)"
     },
     "DJI Store Sofia (Local)": {
-        "price": "199,00€",
-        "status": "Продуктът не е наличен"
+        "price": "Error",
+        "status": "HTTPSConnectionPool(host='store.dji.bg', port=443): Read timed out. (read timeout=15)"
     },
     "AeroCam.bg": {
         "price": "Unknown",
-        "status": "В наличност"
+        "status": "Предварителна поръчка"
     },
     "Copter.bg": {
-        "price": "339,00 €",
-        "status": "Очаква се"
+        "price": "Error",
+        "status": "HTTPSConnectionPool(host='www.copter.bg', port=443): Read timed out. (read timeout=15)"
     },
     "eMAG.bg": {
         "price": "N/A",
